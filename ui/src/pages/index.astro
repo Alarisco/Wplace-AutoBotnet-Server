@@ -1,6 +1,5 @@
 ---
 // Main dashboard page
-import Toast from "../components/Toast.astro";
 import Header from "../components/Header.astro";
 import SlavesPanel from "../components/SlavesPanel.astro";
 import ConfigPanel from "../components/ConfigPanel.astro";
@@ -78,6 +77,27 @@ import PreviewPanel from "../components/PreviewPanel.astro";
       }
       .flash-green { animation: card-flash-green 1.2s ease-out; }
       .flash-red { animation: card-flash-red 1.2s ease-out; }
+      
+      /* Animación suave del spinner para el botón Start */
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      
+      .animate-spin {
+        animation: spin 1s linear infinite;
+      }
+      
+      /* Transiciones suaves para el botón Start */
+      #start-btn-text,
+      #start-btn-spinner {
+        transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Asegurar que el spinner tenga el tamaño correcto */
+      #start-btn-spinner .animate-spin {
+        animation: spin 0.8s linear infinite;
+      }
     </style>
   </head>
   <body class="min-h-screen bg-background font-sans antialiased">
@@ -105,9 +125,6 @@ import PreviewPanel from "../components/PreviewPanel.astro";
       </main>
     </div>
 
-    <!-- Toasts -->
-    <Toast />
-
     <!-- Dashboard JavaScript -->
     <script>
       class WPlaceDashboard {
@@ -129,7 +146,6 @@ import PreviewPanel from "../components/PreviewPanel.astro";
         previewMeta: any; // metadatos adicionales
         lastPreviewAt: number; // throttle preview
         recentLogKeys: Map<string, number>; // dedupe keys with TTL
-        awaitingOneBatchToast: boolean;
   currentRoundPlan: Record<string, number>;
   _previewRefreshCooldownUntil: number;
   _selectedSlavesLocal: Set<string>;
@@ -163,7 +179,6 @@ import PreviewPanel from "../components/PreviewPanel.astro";
           this.previewMeta = {};
           this.lastPreviewAt = 0;
           this.recentLogKeys = new Map();
-          this.awaitingOneBatchToast = false;
           this.currentRoundPlan = {};
           this._previewRefreshCooldownUntil = 0;
           this.init();
@@ -599,13 +614,7 @@ import PreviewPanel from "../components/PreviewPanel.astro";
             case 'repair_complete':
               this.logOnce(`done:${message.slave_id}:${message.completed}`, `✅ Slave ${message.slave_id} completed repairs: ${message.completed} pixels`, 8000);
               try {
-                const favId = this.getFavoriteSlaveId();
-                if (this.awaitingOneBatchToast && favId && favId === message.slave_id) {
-                  // Resalta la tarjeta del slave en verde en vez de toast
-                  this.highlightSlaveCard(String(message.slave_id), true);
-                  this.awaitingOneBatchToast = false;
-                }
-                // También resaltar en verde al completar lote
+                // Resaltar en verde al completar lote
                 this.highlightSlaveCard(String(message.slave_id), true);
               } catch {}
               this.requestPreviewRefreshThrottle();
@@ -668,7 +677,6 @@ import PreviewPanel from "../components/PreviewPanel.astro";
                 const detectedEl = document.getElementById('detected-mode'); if (detectedEl) detectedEl.textContent = 'No file loaded - mode will be auto-detected';
                 this.projectConfig = null; this.detectedBotMode = null; this.lastPreviewData = null; this.guardPreview = { analysis:null, togglesInitialized:false, show:{correct:true, incorrect:true, missing:true}, area:null };
                 ['repaired-pixels','incorrect-pixels','missing-pixels'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent='0'; });
-                this.awaitingOneBatchToast = false;
               } catch {}
               break;
             case 'guard_upload_sent':
@@ -1670,6 +1678,9 @@ import PreviewPanel from "../components/PreviewPanel.astro";
         }
 
   async startSession() {
+          // Mostrar spinner y deshabilitar botón
+          this.showStartSpinner();
+          
           const selectedSlaves = Array.from(document.querySelectorAll<HTMLInputElement>('.slave-toggle:checked')).map(cb => cb.value);
           try { localStorage.setItem('selectedSlaves', JSON.stringify(selectedSlaves)); } catch {}
           try { await fetch(`${this.apiBase()}/api/ui/selected-slaves`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slave_ids: selectedSlaves }) }); } catch {}
@@ -1677,6 +1688,7 @@ import PreviewPanel from "../components/PreviewPanel.astro";
 
           if (!selectedSlaves.length || !this.detectedBotMode) {
             this.log('Please select slaves and load a project file');
+            this.hideStartSpinner();
             return;
           }
 
@@ -1719,16 +1731,20 @@ import PreviewPanel from "../components/PreviewPanel.astro";
             const totalRem = startJs?.total_remaining ?? 0;
             this.log(`✅ Session started; total remaining charges: ${totalRem}`);
             this.sessionStatus = 'running';
-            try { const t = (window as any).__toast; if (t) t(`Sesión iniciada • Cargas totales: ${totalRem}`, 'info', 3000); } catch {}
             const rc = document.getElementById('remaining-charges'); if (rc) rc.textContent = String(totalRem);
             const pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement | null; if (pauseBtn) pauseBtn.disabled = false;
             const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement | null; if (stopBtn) stopBtn.disabled = false;
             const oneBatchBtn = document.getElementById('one-batch-btn') as HTMLButtonElement | null; if (oneBatchBtn) oneBatchBtn.disabled = false;
             const startBtn2 = document.getElementById('start-btn') as HTMLButtonElement | null; if (startBtn2) startBtn2.disabled = true;
+            
+            // Ocultar spinner después de completar
+            this.hideStartSpinner();
             try { this.updateControlButtons(); } catch {}
             
           } catch (error) {
             this.log(`❌ Error starting session: ${error}`);
+            // Ocultar spinner en caso de error
+            this.hideStartSpinner();
           }
         }
 
@@ -1767,7 +1783,7 @@ import PreviewPanel from "../components/PreviewPanel.astro";
           try {
             const selectedSlaves = Array.from(document.querySelectorAll<HTMLInputElement>('.slave-toggle:checked')).map(cb => cb.value);
             if (!selectedSlaves.length) { this.log('⚠️ Selecciona al menos un slave'); return; }
-            if (!this.detectedBotMode || !this.projectConfig) { this.log('⚠️ Carga un proyecto antes de pedir un lote'); try { const t=(window as any).__toast; if(t) t('Carga un proyecto primero', 'warning', 2500); } catch {} return; }
+            if (!this.detectedBotMode || !this.projectConfig) { this.log('⚠️ Carga un proyecto antes de pedir un lote'); return; }
             // Asegurar sesión/proyecto creados si no existían
             if (!this.currentSession) {
               let projectConfig = { mode: this.detectedBotMode, config: this.projectConfig || {} };
@@ -1777,21 +1793,17 @@ import PreviewPanel from "../components/PreviewPanel.astro";
               const sessionData = await sessionResponse.json();
               this.currentSession = sessionData.session_id;
             }
-            this.awaitingOneBatchToast = true;
             this.log('🎯 Ejecutando un lote usando el planificador cooperativo');
             const res = await fetch(`${this.apiBase()}/api/sessions/${this.currentSession}/one-batch`, { method: 'POST' });
             const js = await res.json();
             if (res.ok && js.ok) {
               this.log(`✅ Lote planificado: asignados ${js.assigned}, cargas totales ${js.total_remaining}`);
               const rc = document.getElementById('remaining-charges'); if (rc) rc.textContent = String(js.total_remaining ?? '');
-              try { const t = (window as any).__toast; if (t) t(`Lote en marcha: ${js.assigned} px`, 'info', 2400); } catch {}
             } else {
               this.log(`⚠️ No se pudo planificar lote: ${js.reason || js.detail || 'unknown'}`);
-              try { const t = (window as any).__toast; if (t) t(`No hay trabajo: ${js.reason || ''}`,'warning', 2400); } catch {}
             }
           } catch (e) {
             this.log(`❌ Error en 'Un lote': ${e?.message || e}`);
-            try { const t = (window as any).__toast; if (t) t('Error solicitando lote', 'error', 3500); } catch {}
           }
         }
 
@@ -2365,6 +2377,51 @@ import PreviewPanel from "../components/PreviewPanel.astro";
             if (bar) (bar as HTMLElement).style.width = `${pct}%`;
             if (lbl) lbl.textContent = `${pct.toFixed(1)}%`;
           }catch{}
+        }
+
+        // ====== Funciones del spinner para el botón Start ======
+        showStartSpinner(){
+          try {
+            const startBtn = document.getElementById('start-btn') as HTMLButtonElement | null;
+            const startBtnText = document.getElementById('start-btn-text') as HTMLElement | null;
+            const startBtnSpinner = document.getElementById('start-btn-spinner') as HTMLElement | null;
+            
+            if (startBtn && startBtnText && startBtnSpinner) {
+              // Deshabilitar botón
+              startBtn.disabled = true;
+              
+              // Ocultar texto con transición suave
+              startBtnText.style.opacity = '0';
+              
+              // Mostrar spinner con transición suave
+              setTimeout(() => {
+                startBtnSpinner.style.opacity = '1';
+              }, 150); // Pequeño delay para que la transición sea más fluida
+            }
+          } catch(e) {
+            this.log(`⚠️ Error showing spinner: ${e?.message || e}`);
+          }
+        }
+
+        hideStartSpinner(){
+          try {
+            const startBtn = document.getElementById('start-btn') as HTMLButtonElement | null;
+            const startBtnText = document.getElementById('start-btn-text') as HTMLElement | null;
+            const startBtnSpinner = document.getElementById('start-btn-spinner') as HTMLElement | null;
+            
+            if (startBtn && startBtnText && startBtnSpinner) {
+              // Ocultar spinner
+              startBtnSpinner.style.opacity = '0';
+              
+              // Mostrar texto después de ocultar spinner
+              setTimeout(() => {
+                startBtnText.style.opacity = '1';
+                // El botón se habilita/deshabilita según la lógica de updateControlButtons()
+              }, 150);
+            }
+          } catch(e) {
+            this.log(`⚠️ Error hiding spinner: ${e?.message || e}`);
+          }
         }
 
         requestPreviewRefreshThrottle(){
