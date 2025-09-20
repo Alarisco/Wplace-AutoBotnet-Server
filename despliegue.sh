@@ -157,7 +157,7 @@ echo -e "$OK Despliegue completado"
 echo -e "$INFO Verificando healthcheck…"
 if run_remote "curl -fsS http://localhost:8008/health >/dev/null"; then
   echo -e "$OK Master Server API saludable en http://${SERVER_IP}:8008/"
-  echo -e "$OK Dashboard UI disponible en http://${SERVER_IP}:3000/"
+  echo -e "$OK Dashboard UI disponible en http://${SERVER_IP}:3004/"
 else
   echo -e "$WARN No se pudo verificar /health. Revisa logs con: cd ${REMOTE_DIR} && ${COMPOSE_CMD} logs -f server"
 fi
@@ -169,13 +169,13 @@ cat <<EOF
 ====================================================
 
 📊 Servicios disponibles:
-- Dashboard UI: http://${SERVER_IP}:3000
+- Dashboard UI: http://${SERVER_IP}:3004
 - API Server:   http://${SERVER_IP}:8008
 - API Docs:     http://${SERVER_IP}:8008/docs
 - Health Check: http://${SERVER_IP}:8008/health
 
 📋 Siguientes pasos:
-- Configura tu firewall para permitir los puertos 3000 y 8008
+- Configura tu firewall para permitir los puertos 3004 y 8008
 - Si necesitas acceso público, configura un proxy reverso (Nginx/Traefik)
 - Para conectar slaves, usa la URL: ws://${SERVER_IP}:8008/ws/slave
 

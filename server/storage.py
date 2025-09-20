@@ -230,6 +230,34 @@ class BatchTracker:
         b = self.batches.get(request_id, {})
         b['pending'] = sum(1 for _k, a in b.get('assignments', {}).items() 
                           if a.get('status') == 'pending')
+    
+    def cleanup_abandoned_batches(self, request_id: str, max_retries: int = 3):
+        """Limpiar lotes abandonados que han superado el máximo de reintentos."""
+        with self.lock:
+            b = self.batches.get(request_id)
+            if not b:
+                return 0
+                
+            abandoned_count = 0
+            assignments_to_remove = []
+            
+            for (sid, key), data in b['assignments'].items():
+                attempts = data.get('attempts', 0)
+                status = data.get('status', 'pending')
+                
+                # Marcar para eliminación si ha superado max_retries y está fallido
+                if attempts > max_retries and status == 'failed':
+                    assignments_to_remove.append((sid, key))
+                    abandoned_count += 1
+            
+            # Eliminar lotes abandonados
+            for key_to_remove in assignments_to_remove:
+                del b['assignments'][key_to_remove]
+            
+            # Recontear después de la limpieza
+            self._recount(request_id)
+            
+            return abandoned_count
 
 
 # Instancia global del tracker

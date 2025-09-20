@@ -1,19 +1,16 @@
 ---
 // Control panel with file upload, mode detection, charge strategy and actions
+import ServerConfig from './ServerConfig.astro';
 ---
 
 <div class="bg-card border rounded-lg p-6">
   <h2 class="text-lg font-semibold mb-4 text-card-foreground">Control Panel</h2>
   
+  <!-- Server Configuration -->
+  <ServerConfig />
+  
   <!-- Project Configuration -->
-  <div class="space-y-4">
-    <div>
-      <label class="block text-sm font-medium mb-2 text-card-foreground">Detected Bot Mode</label>
-      <div id="detected-mode" class="w-full p-2 border rounded-md bg-muted text-muted-foreground">
-        No file loaded - mode will be auto-detected
-      </div>
-    </div>
-
+  <div class="space-y-4 mt-6">
     <div>
       <label class="block text-sm font-medium mb-2 text-card-foreground">Project File</label>
       <input type="file" id="project-file" accept=".json" class="w-full p-2 border rounded-md bg-background text-foreground">

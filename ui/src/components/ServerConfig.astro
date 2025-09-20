@@ -1,0 +1,294 @@
+---
+// Componente para configuración del servidor WebSocket
+---
+
+<div class="bg-muted/50 border rounded-lg mb-4 overflow-hidden">
+  <!-- Header clickeable para expandir/colapsar -->
+  <div 
+    id="server-config-header" 
+    class="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/70 transition-colors duration-200 select-none"
+  >
+    <div class="flex items-center">
+      <span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+      <h3 class="text-sm font-semibold text-card-foreground">Configuración del Servidor WebSocket</h3>
+    </div>
+    <div class="flex items-center space-x-2">
+      <!-- Indicador de estado de conexión en el header -->
+      <div id="connection-indicator-header" class="w-3 h-3 rounded-full bg-gray-400"></div>
+      <span id="connection-status-header" class="text-xs text-muted-foreground">Desconectado</span>
+      <!-- Icono de expansión/colapso -->
+      <svg 
+        id="expand-icon" 
+        class="w-4 h-4 text-muted-foreground transition-transform duration-300 ease-in-out" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+      </svg>
+    </div>
+  </div>
+  
+  <!-- Contenido colapsable -->
+  <div 
+    id="server-config-content" 
+    class="transition-all duration-300 ease-in-out overflow-hidden"
+    style="max-height: 1000px;"
+  >
+    <div class="px-4 pb-4 space-y-3">
+      <!-- Campo de URL del servidor -->
+      <div>
+        <label class="block text-xs font-medium mb-1 text-muted-foreground">URL del Servidor</label>
+        <input 
+          type="text" 
+          id="server-url" 
+          placeholder="ws://localhost:8008" 
+          class="w-full p-2 text-sm border rounded-md bg-background text-foreground font-mono"
+        >
+        <div id="url-validation" class="mt-1 text-xs text-muted-foreground"></div>
+      </div>
+
+      <!-- Estado de conexión -->
+      <div class="flex items-center justify-between p-2 bg-muted rounded-md">
+        <div class="flex items-center space-x-2">
+          <div id="connection-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
+          <span id="connection-status" class="text-sm text-muted-foreground">Desconectado</span>
+        </div>
+        <div class="flex space-x-2">
+          <button 
+            id="test-connection-btn" 
+            class="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/90"
+          >
+            Probar
+          </button>
+          <button 
+            id="reconnect-btn" 
+            class="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          >
+            Reconectar
+          </button>
+        </div>
+      </div>
+
+      <!-- Configuración avanzada (colapsable) -->
+      <details class="group">
+        <summary class="cursor-pointer text-sm font-medium text-card-foreground hover:text-primary">
+          ⚙️ Configuración Avanzada
+        </summary>
+        <div class="mt-3 space-y-3 pl-4 border-l-2 border-muted">
+          <div class="flex items-center space-x-2">
+            <input 
+              type="checkbox" 
+              id="auto-connect" 
+              class="rounded"
+              checked
+            >
+            <label for="auto-connect" class="text-sm text-card-foreground">Conectar automáticamente</label>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-1 text-card-foreground">Intentos de reconexión</label>
+            <input 
+              type="number" 
+              id="reconnect-attempts" 
+              min="1" 
+              max="10" 
+              value="5"
+              class="w-20 p-1 border rounded text-sm bg-background text-foreground"
+            >
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-1 text-card-foreground">Delay de reconexión (ms)</label>
+            <input 
+              type="number" 
+              id="reconnect-delay" 
+              min="1000" 
+              max="30000" 
+              step="1000" 
+              value="3000"
+              class="w-24 p-1 border rounded text-sm bg-background text-foreground"
+            >
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+  import serverConfigManager from '../utils/ServerConfigManager.js';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const serverUrlInput = document.getElementById('server-url');
+    const urlValidation = document.getElementById('url-validation');
+    const connectionIndicator = document.getElementById('connection-indicator');
+    const connectionStatus = document.getElementById('connection-status');
+    const connectionIndicatorHeader = document.getElementById('connection-indicator-header');
+    const connectionStatusHeader = document.getElementById('connection-status-header');
+    const testConnectionBtn = document.getElementById('test-connection-btn');
+    const reconnectBtn = document.getElementById('reconnect-btn');
+    const autoConnectCheckbox = document.getElementById('auto-connect');
+    const reconnectAttemptsInput = document.getElementById('reconnect-attempts');
+    const reconnectDelayInput = document.getElementById('reconnect-delay');
+    
+    // Elementos para el comportamiento de colapso
+    const header = document.getElementById('server-config-header');
+    const content = document.getElementById('server-config-content');
+    const expandIcon = document.getElementById('expand-icon');
+    
+    let isExpanded = true; // Por defecto expandido
+    let isConnected = false; // Estado de conexión
+
+    // Cargar configuración inicial
+    loadCurrentConfig();
+
+    // Event listeners
+    serverUrlInput.addEventListener('input', handleUrlInput);
+    serverUrlInput.addEventListener('blur', saveUrlToStorage);
+    testConnectionBtn.addEventListener('click', handleTestConnection);
+    reconnectBtn.addEventListener('click', handleReconnect);
+    autoConnectCheckbox.addEventListener('change', handleConfigChange);
+    reconnectAttemptsInput.addEventListener('change', handleConfigChange);
+    reconnectDelayInput.addEventListener('change', handleConfigChange);
+    
+    // Event listener para el header clickeable
+    header.addEventListener('click', toggleExpansion);
+
+    // Escuchar cambios de estado de WebSocket
+    window.addEventListener('websocketStateChanged', handleWebSocketStateChange);
+
+    function toggleExpansion() {
+      isExpanded = !isExpanded;
+      
+      if (isExpanded) {
+        // Expandir
+        content.style.maxHeight = '1000px';
+        expandIcon.style.transform = 'rotate(0deg)';
+      } else {
+        // Colapsar
+        content.style.maxHeight = '0px';
+        expandIcon.style.transform = 'rotate(-90deg)';
+      }
+    }
+
+    function autoCollapseIfConnected() {
+      // Solo colapsar automáticamente si está conectado y actualmente expandido
+      if (isConnected && isExpanded) {
+        setTimeout(() => {
+          toggleExpansion();
+        }, 1500); // Esperar 1.5 segundos después de conectar
+      }
+    }
+
+    function loadCurrentConfig() {
+      const config = serverConfigManager.getConfig();
+      
+      // Cargar URL guardada o usar la por defecto
+      serverUrlInput.value = config.serverUrl;
+      
+      // Configurar opciones avanzadas
+      autoConnectCheckbox.checked = config.autoConnect;
+      reconnectAttemptsInput.value = config.reconnectAttempts;
+      reconnectDelayInput.value = config.reconnectDelay;
+      
+      validateUrl(config.serverUrl);
+    }
+
+    function handleUrlInput() {
+      const url = serverUrlInput.value.trim();
+      validateUrl(url);
+    }
+
+    function saveUrlToStorage() {
+      const url = serverUrlInput.value.trim();
+      if (url && serverConfigManager.validateServerUrl(url)) {
+        serverConfigManager.setServerUrl(url);
+        console.log(`💾 URL guardada: ${url}`);
+      }
+    }
+
+    function validateUrl(url) {
+      if (!url) {
+        urlValidation.textContent = 'Ingresa la URL del servidor WebSocket';
+        urlValidation.className = 'mt-1 text-xs text-muted-foreground';
+        return;
+      }
+      
+      const isValid = serverConfigManager.validateServerUrl(url);
+      
+      if (isValid) {
+        urlValidation.textContent = '✓ URL válida';
+        urlValidation.className = 'mt-1 text-xs text-green-600';
+      } else {
+        urlValidation.textContent = '⚠ Formato de URL inválido (ej: ws://localhost:8008)';
+        urlValidation.className = 'mt-1 text-xs text-red-600';
+      }
+    }
+
+    function handleTestConnection() {
+      const url = serverUrlInput.value.trim();
+      if (url && serverConfigManager.validateServerUrl(url)) {
+        serverConfigManager.setServerUrl(url);
+        window.dispatchEvent(new CustomEvent('testConnection'));
+      }
+    }
+
+    function handleReconnect() {
+      const url = serverUrlInput.value.trim();
+      if (url && serverConfigManager.validateServerUrl(url)) {
+        serverConfigManager.setServerUrl(url);
+        window.dispatchEvent(new CustomEvent('forceReconnect'));
+      }
+    }
+
+    function handleConfigChange() {
+      const config = {
+        autoConnect: autoConnectCheckbox.checked,
+        reconnectAttempts: parseInt(reconnectAttemptsInput.value) || 5,
+        reconnectDelay: parseInt(reconnectDelayInput.value) || 3000
+      };
+      
+      serverConfigManager.setConfig(config);
+    }
+
+    function handleWebSocketStateChange(event) {
+      const { state, error } = event.detail;
+      updateConnectionStatus(state, error);
+    }
+
+    function updateConnectionStatus(state, error = null) {
+      let statusText, indicatorClass;
+      
+      switch (state) {
+        case 'connecting':
+          indicatorClass = 'w-3 h-3 rounded-full bg-yellow-400 animate-pulse';
+          statusText = 'Conectando...';
+          isConnected = false;
+          break;
+        case 'connected':
+          indicatorClass = 'w-3 h-3 rounded-full bg-green-400';
+          statusText = 'Conectado';
+          isConnected = true;
+          // Activar colapso automático cuando se conecta
+          autoCollapseIfConnected();
+          break;
+        case 'disconnected':
+          indicatorClass = 'w-3 h-3 rounded-full bg-red-400';
+          statusText = error ? `Error: ${error}` : 'Desconectado';
+          isConnected = false;
+          break;
+        default:
+          indicatorClass = 'w-3 h-3 rounded-full bg-gray-400';
+          statusText = 'Desconocido';
+          isConnected = false;
+      }
+      
+      // Actualizar indicadores tanto en el contenido como en el header
+      connectionIndicator.className = indicatorClass;
+      connectionStatus.textContent = statusText;
+      connectionIndicatorHeader.className = indicatorClass;
+      connectionStatusHeader.textContent = statusText;
+    }
+  });
+</script>

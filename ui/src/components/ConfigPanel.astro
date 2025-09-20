@@ -62,6 +62,10 @@ import PatternSelector from "./PatternSelector.astro";
         <input type="number" id="gc-pixelsPerBatch" min="1" class="w-full p-2 border rounded-md bg-background text-foreground" />
       </div>
       <div>
+        <label class="block text-sm font-medium mb-2 text-card-foreground">Máximo reintentos por lote</label>
+        <input type="number" id="gc-maxRetries" min="1" max="10" value="3" class="w-full p-2 border rounded-md bg-background text-foreground" />
+      </div>
+      <div>
         <label class="block text-sm font-medium mb-2 text-card-foreground">Estrategia de distribución</label>
         <select id="gc-chargeStrategy" class="w-full p-2 border rounded-md bg-background text-foreground">
           <option value="greedy">Greedy (óptimo API)</option>

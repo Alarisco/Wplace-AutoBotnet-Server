@@ -90,6 +90,8 @@ def setup_session_endpoints(app):
         # Función de filtrado de cambios
         async def filter_changes(preview_data: Dict[str, Any]) -> List[Dict[str, Any]]:
             changes = preview_data.get('changes', []) if isinstance(preview_data, dict) else []
+            # Asegurar que todos los elementos sean diccionarios
+            changes = [c for c in changes if isinstance(c, dict)]
             # Elegibles para reparación: missing, absent e incorrect
             changes = [c for c in changes if c.get('type') in ('missing', 'absent', 'incorrect')]
             
@@ -375,8 +377,9 @@ def setup_session_endpoints(app):
                                 idx = (idx + 1) if isinstance(idx, int) else 0
                                 new_sid = candidates[idx % len(candidates)]
                                 attempts = batch_tracker.inc_attempts(req_id, sid, key)
+                                max_retries = int(guard_config.get('maxRetries', 3))
                                 
-                                if attempts <= 3:
+                                if attempts <= max_retries:
                                     # Reasignar lote por tile (mantener formato original)
                                     await manager.send_to_slave(new_sid, {
                                         'type': 'paintBatch',
@@ -387,6 +390,13 @@ def setup_session_endpoints(app):
                                         'requestId': req_id,
                                         'batchSize': data.get('batchSize', len(data.get('coords', [])))
                                     })
+                                else:
+                                    # Lote abandonado después de max_retries fallos
+                                    logger.warning(f"[orchestrate_loop] Lote abandonado después de {attempts} fallos (max: {max_retries}): req_id={req_id}, slave={sid}, key={key}")
+                                    # Limpiar lotes abandonados
+                                    cleaned = batch_tracker.cleanup_abandoned_batches(req_id, max_retries)
+                                    if cleaned > 0:
+                                        logger.info(f"[orchestrate_loop] Limpiados {cleaned} lotes abandonados para req_id={req_id}")
                         
                         await asyncio.sleep(1)
                         
@@ -516,6 +526,9 @@ def setup_session_endpoints(app):
             return c.get('expectedColor', c.get('color', 0))
         
         changes = preview.get('changes', []) if isinstance(preview, dict) else []
+        
+        # Asegurar que todos los elementos sean diccionarios
+        changes = [c for c in changes if isinstance(c, dict)]
         
         # Evitar píxeles bloqueados
         try:
@@ -664,9 +677,10 @@ def setup_session_endpoints(app):
                 idx = (idx + 1) if isinstance(idx, int) else 0
                 new_sid = candidates[idx % len(candidates)]
                 attempts = batch_tracker.inc_attempts(req_id, sid, key)
+                max_retries = int(guard_config.get('maxRetries', 3))
                 
-                if attempts <= 3:
-                    # Reasignar lote por tile (mantener formato original)
+                if attempts <= max_retries:
+                    # Reasignar lote a otro slave
                     await manager.send_to_slave(new_sid, {
                         'type': 'paintBatch',
                         'tileX': data.get('tileX'),
@@ -676,6 +690,13 @@ def setup_session_endpoints(app):
                         'requestId': req_id,
                         'batchSize': data.get('batchSize', len(data.get('coords', [])))
                     })
+                else:
+                    # Lote abandonado después de max_retries fallos
+                    logger.warning(f"[orchestrate_loop] Lote abandonado después de {attempts} fallos (max: {max_retries}): req_id={req_id}, slave={sid}, key={key}")
+                    # Limpiar lotes abandonados
+                    cleaned = batch_tracker.cleanup_abandoned_batches(req_id, max_retries)
+                    if cleaned > 0:
+                        logger.info(f"[orchestrate_loop] Limpiados {cleaned} lotes abandonados para req_id={req_id}")
         
         return {
             "ok": True,

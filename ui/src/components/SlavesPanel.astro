@@ -2,41 +2,27 @@
 // Connected slaves panel with master toggle and logs
 ---
 
-<div class="lg:col-span-1">
-  <div class="bg-card border rounded-lg p-6">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-card-foreground">Connected Slaves</h2>
-      <!-- Master toggle: activar/desactivar todos -->
-      <div class="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>Toggle all</span>
-        <label class="relative inline-flex w-9 h-5 items-center cursor-pointer select-none">
-          <input type="checkbox" id="toggle-all-slaves" class="opacity-0 absolute w-0 h-0">
-          <span data-role="track" class="absolute inset-0 rounded-full transition-colors duration-300 bg-red-500"></span>
-          <span data-role="knob" class="absolute left-0.5 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full transition-transform duration-300 translate-x-0"></span>
-        </label>
-      </div>
-    </div>
-    <div id="slaves-list" class="space-y-3">
-      <div class="text-sm text-muted-foreground text-center py-8">
-        No slaves connected. Inject Auto-Slave.js in your browser.
-      </div>
-    </div>
-    <div class="mt-4 text-xs text-muted-foreground">
-      <div>Last charge update: <span id="last-charge-update">Never</span></div>
-      <div>Next update in: <span id="next-update-countdown">--</span>s</div>
-    </div>
+<h2 class="text-lg font-semibold text-card-foreground">Connected Slaves</h2>
 
-    <!-- Activity Logs under Slaves with collapsible animation -->
-    <div class="mt-6">
-      <button id="logs-toggle" class="w-full flex items-center justify-between text-left text-sm text-card-foreground bg-muted/40 hover:bg-muted border rounded-md px-3 py-2 transition-colors">
-        <span>Activity Logs</span>
-        <span id="logs-caret" aria-hidden="true" class="transition-transform">▾</span>
-      </button>
-      <div id="logs-wrapper" class="overflow-hidden transition-[max-height] duration-300 ease-in-out" style="max-height: 220px;">
-        <div id="logs-container" class="bg-muted rounded-md p-3 h-52 overflow-y-auto font-mono text-[11px]">
-          <div class="text-muted-foreground">Waiting for activity...</div>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Master toggle for select/deselect all -->
+<div class="flex items-center gap-2 select-none">
+  <label class="relative inline-flex w-9 h-5 items-center cursor-pointer select-none">
+    <input type="checkbox" id="toggle-all-slaves" class="opacity-0 absolute w-0 h-0">
+    <span data-role="track" class="absolute inset-0 rounded-full transition-colors duration-300 bg-red-500"></span>
+    <span data-role="knob" class="absolute left-0.5 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full transition-transform duration-300 translate-x-0"></span>
+  </label>
+  <span class="text-sm text-muted-foreground">Select all</span>
+</div>
+
+<!-- Slaves list -->
+<div id="slaves-list" class="space-y-3 overflow-y-auto max-h-[960px] pr-1">
+  No slaves connected. Inject Auto-Slave.js in your browser.
+</div>
+
+<!-- Activity Logs under Slaves with collapsible animation -->
+<div class="mt-4">
+  <details id="logs-section" class="group">
+    <summary class="text-sm text-muted-foreground cursor-pointer select-none">Activity Logs</summary>
+    <div id="logs-container" class="mt-2 text-xs text-muted-foreground max-h-[300px] overflow-y-auto whitespace-pre-wrap"></div>
+  </details>
 </div>

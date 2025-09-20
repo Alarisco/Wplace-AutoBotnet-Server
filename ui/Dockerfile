@@ -21,9 +21,8 @@ RUN npm install rollup@3.29.4 --save-dev
 # Copy source code
 COPY . .
 
-# Define build argument for server URL
-ARG SERVER_URL=""
-ENV PUBLIC_SERVER_URL=$SERVER_URL
+# Copy utils files to public directory for production build
+RUN mkdir -p public/utils && cp -r src/utils/* public/utils/
 
 # Build the application
 RUN npm run build
