@@ -152,6 +152,9 @@ class WPlaceDashboard {
       case 'projects_cleared':
         this.handleProjectsCleared();
         break;
+      case 'project_created':
+        this.handleProjectCreated(message);
+        break;
       case 'initial_state':
         this.handleInitialState(message);
         break;
@@ -208,6 +211,32 @@ class WPlaceDashboard {
       default:
         this.log(`❓ Unknown message type: ${message.type}`);
         console.log('Full unknown message:', message);
+    }
+  }
+
+  handleProjectCreated(message) {
+    try {
+      if (message.project) {
+        this.log(`📁 New project created: ${message.project.name} (${message.project.mode})`);
+        this.upsertProjectInList(message.project);
+        
+        // Si es un proyecto Guard, actualizar la configuración actual
+        if (message.project.mode === 'Guard') {
+          this.projectConfig = message.project.config;
+          this.detectedBotMode = 'Guard';
+          
+          const detectedEl = document.getElementById('detected-mode');
+          if (detectedEl) detectedEl.textContent = `Detected mode: ${this.detectedBotMode}`;
+          
+          const statusEl = document.getElementById('file-status');
+          if (statusEl) statusEl.textContent = `Loaded: ${message.project.name}`;
+          
+          try { this.previewManager.requestPreviewRefreshThrottle(); } catch {}
+          this.updateControlButtons();
+        }
+      }
+    } catch (e) {
+      this.log(`❌ Error handling project_created: ${e.message}`);
     }
   }
 
@@ -269,10 +298,23 @@ class WPlaceDashboard {
 
       this.handleSessionRehydration(message);
 
+      // Renderizar proyectos con logging para debug
       try {
         const projects = Array.isArray(message.projects) ? message.projects : [];
+        this.log(`📁 Rendering ${projects.length} projects from initial_state`);
+        if (projects.length > 0) {
+          this.log(`📁 Projects: ${projects.map(p => `${p.name} (${p.mode})`).join(', ')}`);
+        }
         this.renderProjectsList(projects);
-      } catch {}
+        
+        // Mostrar/ocultar mensaje de "no hay proyectos"
+        const emptyEl = document.getElementById('projects-empty');
+        if (emptyEl) {
+          emptyEl.style.display = projects.length === 0 ? 'block' : 'none';
+        }
+      } catch (e) {
+        this.log(`❌ Error rendering projects: ${e.message}`);
+      }
 
       this.autoAssignFavoriteIfNeeded();
 

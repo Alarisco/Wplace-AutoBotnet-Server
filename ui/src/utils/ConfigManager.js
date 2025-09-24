@@ -63,36 +63,48 @@ export class ConfigManager {
   applyGuardConfigToForm() {
     const cfg = this.guardConfig || {};
     const map = [
+      ['gc-operationMode', 'operationMode'],
       ['gc-protectionPattern', 'protectionPattern'],
       ['gc-preferColor', 'preferColor', 'checkbox'],
       ['gc-excludeColor', 'excludeColor', 'checkbox'],
       ['gc-spendAllPixelsOnStart', 'spendAllPixelsOnStart', 'checkbox'],
       ['gc-randomWaitTime', 'randomWaitTime', 'checkbox'],
+      ['gc-protectTransparentPixels', 'protectTransparentPixels', 'checkbox'],
+      ['gc-protectPerimeter', 'protectPerimeter', 'checkbox'],
       ['gc-minChargesToWait', 'minChargesToWait'],
       ['gc-pixelsPerBatch', 'pixelsPerBatch'],
+      ['gc-maxRetries', 'maxRetries'],
       ['gc-chargeStrategy', 'chargeStrategy'],
       ['gc-recentLockSeconds', 'recentLockSeconds'],
       ['gc-randomWaitMin', 'randomWaitMin'],
       ['gc-randomWaitMax', 'randomWaitMax'],
-      ['gc-colorThreshold', 'colorThreshold']
+      ['gc-colorThreshold', 'colorThreshold'],
+      ['gc-perimeterWidth', 'perimeterWidth']
     ];
     
-    map.forEach(([id, key, type]) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+    for (const [elemId, cfgKey, type] of map) {
+      const elem = document.getElementById(elemId);
+      if (!elem) continue;
+      
+      const val = cfg[cfgKey];
       if (type === 'checkbox') {
-        el.checked = !!cfg[key];
-      } else if (cfg[key] !== undefined) {
-        el.value = cfg[key];
+        elem.checked = !!val;
+        // Actualizar estado visual del toggle si existe
+        this.dashboard.uiHelpers?.updateToggleState?.(elemId, !!val);
+      } else {
+        elem.value = val ?? (elem.type === 'number' ? 0 : '');
       }
-    });
+    }
     
-    // Mostrar/ocultar tiempos aleatorios según toggle
-    try {
-      const rt = document.getElementById('gc-randomWaitTime');
-      const times = document.getElementById('gc-random-times');
-      if (times) times.style.display = (rt && rt.checked) ? '' : 'none';
-    } catch {}
+    // Manejar visibilidad de secciones condicionales
+    this.ensureInlineSectionsVisibility();
+    
+    // Manejar visibilidad del contenedor de ancho de perímetro
+    const protectPerimeter = cfg.protectPerimeter !== false; // default true
+    const perimeterContainer = document.getElementById('gc-perimeter-width-container');
+    if (perimeterContainer) {
+      perimeterContainer.style.display = protectPerimeter ? 'block' : 'none';
+    }
   }
 
   /**
@@ -193,11 +205,18 @@ export class ConfigManager {
     });
     wireToggle('gc-randomWaitTime', 'gc-random-times');
     wireToggle('gc-spendAllPixelsOnStart');
+    wireToggle('gc-protectTransparentPixels');
+    wireToggle('gc-protectPerimeter', null, () => {
+      const perimeterContainer = document.getElementById('gc-perimeter-width-container');
+      if (perimeterContainer) {
+        perimeterContainer.style.display = document.getElementById('gc-protectPerimeter').checked ? 'block' : 'none';
+      }
+    });
 
     // Inputs numéricos y selects
     const numericIds = [
       'gc-minChargesToWait', 'gc-pixelsPerBatch', 'gc-recentLockSeconds',
-      'gc-randomWaitMin', 'gc-randomWaitMax', 'gc-colorThreshold'
+      'gc-randomWaitMin', 'gc-randomWaitMax', 'gc-colorThreshold', 'gc-perimeterWidth'
     ];
     numericIds.forEach(id => {
       const el = document.getElementById(id);
@@ -206,7 +225,7 @@ export class ConfigManager {
       }
     });
 
-    const selectIds = ['gc-protectionPattern', 'gc-chargeStrategy'];
+    const selectIds = ['gc-operationMode', 'gc-protectionPattern', 'gc-chargeStrategy'];
     selectIds.forEach(id => {
       const el = document.getElementById(id);
       if (el) {

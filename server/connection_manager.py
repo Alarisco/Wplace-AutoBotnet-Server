@@ -89,13 +89,17 @@ class ConnectionManager:
                 # Enviar guardData si existe para continuar preview
                 try:
                     if last_guard_upload:
+                        # Usar datos procesados si están disponibles, sino usar datos originales
+                        guard_data_to_send = last_guard_upload.get("processed_data", last_guard_upload.get("data", {}))
+                        
                         payload = {
                             "type": "guardData",
                             "filename": last_guard_upload.get("filename", "uploaded_guard.json"),
-                            "guardData": last_guard_upload.get("data", {}),
+                            "guardData": guard_data_to_send,
                             "timestamp": datetime.utcnow().isoformat()
                         }
                         await self.slave_connections[slave_id].send_text(_compress_if_needed(payload))
+                        logger.info(f"GuardData enviado a primer favorito {slave_id}")
                 except Exception as e:
                     logger.error(f"Error sending guardData to first favorite {slave_id}: {e}")
             else:
@@ -121,13 +125,17 @@ class ConnectionManager:
                 # También re-enviar guardData si existe
                 try:
                     if last_guard_upload:
+                        # Usar datos procesados si están disponibles, sino usar datos originales
+                        guard_data_to_send = last_guard_upload.get("processed_data", last_guard_upload.get("data", {}))
+                        
                         payload = {
                             "type": "guardData",
                             "filename": last_guard_upload.get("filename", "uploaded_guard.json"),
-                            "guardData": last_guard_upload.get("data", {}),
+                            "guardData": guard_data_to_send,
                             "timestamp": datetime.utcnow().isoformat()
                         }
                         await self.slave_connections[slave_id].send_text(_compress_if_needed(payload))
+                        logger.info(f"GuardData re-enviado a favorito {slave_id}")
                 except Exception as e:
                     logger.error(f"Error re-sending guardData to favorite {slave_id}: {e}")
 
@@ -168,12 +176,16 @@ class ConnectionManager:
                 
                 # Enviar guardData si existe para que continúe la preview
                 if last_guard_upload:
+                    # Usar datos procesados si están disponibles, sino usar datos originales
+                    guard_data_to_send = last_guard_upload.get("processed_data", last_guard_upload.get("data", {}))
+                    
                     await self.send_to_slave(new_id, {
                         "type": "guardData",
                         "filename": last_guard_upload.get("filename", "uploaded_guard.json"),
-                        "guardData": last_guard_upload.get("data", {}),
+                        "guardData": guard_data_to_send,
                         "timestamp": datetime.utcnow().isoformat()
                     })
+                    logger.info(f"GuardData enviado a slave reconectado {new_id}")
                     
                 # Notificar a UIs
                 await self.broadcast_to_ui({"type": "slave_favorite", "slave_id": new_id})

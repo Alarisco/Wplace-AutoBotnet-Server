@@ -124,10 +124,13 @@ def setup_endpoints(app):
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 if last_guard_upload:
+                    # Usar datos procesados si están disponibles, sino usar datos originales
+                    guard_data_to_send = last_guard_upload.get("processed_data", last_guard_upload.get("data", {}))
+                    
                     await manager.send_to_slave(slave_id, {
                         "type": "guardData",
                         "filename": last_guard_upload.get("filename", "uploaded_guard.json"),
-                        "guardData": last_guard_upload.get("data", {}),
+                        "guardData": guard_data_to_send,
                         "timestamp": datetime.utcnow().isoformat()
                     })
             except Exception as e:
@@ -168,10 +171,13 @@ def setup_endpoints(app):
             
         try:
             if last_guard_upload:
+                # Usar datos procesados si están disponibles, sino usar datos originales
+                guard_data_to_send = last_guard_upload.get("processed_data", last_guard_upload.get("data", {}))
+                
                 await manager.send_to_slave(slave_id, {
                     "type": "guardData",
                     "filename": last_guard_upload.get("filename", "uploaded_guard.json"),
-                    "guardData": last_guard_upload.get("data", {}),
+                    "guardData": guard_data_to_send,
                     "timestamp": datetime.utcnow().isoformat()
                 })
         except Exception as e:
@@ -360,6 +366,26 @@ def setup_endpoints(app):
         Query params:
         - persist: si False, no crea un nuevo proyecto ni emite project_created (para activar un proyecto existente)
         """
+        # Importar el procesador de datos Guard
+        try:
+            from .guard_data_processor import process_guard_data, validate_guard_data, get_guard_data_info
+        except ImportError:
+            from guard_data_processor import process_guard_data, validate_guard_data, get_guard_data_info
+        
+        # Validar datos Guard antes de procesar
+        is_valid, error_msg = validate_guard_data(guard.data)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Datos Guard inválidos: {error_msg}")
+        
+        # Obtener información de los datos
+        guard_info = get_guard_data_info(guard.data)
+        logger.info(f"[GUARD UPLOAD] Datos recibidos - Versión: {guard_info.get('version')}, "
+                   f"Píxeles: {guard_info.get('pixelCount')}, "
+                   f"Comprimido: {guard_info.get('isCompressed')}")
+        
+        # Procesar datos Guard (descomprimir si es necesario)
+        processed_data = process_guard_data(guard.data)
+        
         # Localizar slave favorito
         fav_id = None
         for sid, sinfo in connected_slaves.items():
@@ -370,22 +396,24 @@ def setup_endpoints(app):
             raise HTTPException(status_code=400, detail="No favorite slave connected")
 
         logger.info(
-            f"[GUARD UPLOAD] Enviando guardData a slave favorito {fav_id} (pixels={len(guard.data.get('originalPixels', []))})"
+            f"[GUARD UPLOAD] Enviando guardData procesado a slave favorito {fav_id} "
+            f"(pixels={len(processed_data.get('originalPixels', []))})"
         )
 
         # Empaquetar datos a enviar al favorito
         payload = {
             "type": "guardData",
             "filename": guard.filename or "uploaded_guard.json",
-            "guardData": guard.data,
+            "guardData": processed_data,  # Usar datos procesados
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-        # Persistir último guardData (para rehidratación)
+        # Persistir último guardData (datos originales para rehidratación)
         global last_guard_upload
         last_guard_upload = {
             "filename": guard.filename or "uploaded_guard.json",
-            "data": guard.data,
+            "data": guard.data,  # Mantener datos originales
+            "processed_data": processed_data,  # Agregar datos procesados
             "stored_at": datetime.utcnow().isoformat(),
         }
 
@@ -395,10 +423,10 @@ def setup_endpoints(app):
             project_id = str(uuid.uuid4())
             try:
                 active_projects[project_id] = ProjectConfig(
-                    name=guard.filename or "Guard Upload", mode="Guard", config=guard.data
+                    name=guard.filename or "Guard Upload", mode="Guard", config=processed_data
                 )
             except Exception:
-                active_projects[project_id] = ProjectConfig(name="Guard Upload", mode="Guard", config=guard.data)
+                active_projects[project_id] = ProjectConfig(name="Guard Upload", mode="Guard", config=processed_data)
             db = SessionLocal()
             try:
                 db.add(
@@ -406,7 +434,7 @@ def setup_endpoints(app):
                         id=project_id,
                         name=active_projects[project_id].name,
                         mode="Guard",
-                        config=guard.data,
+                        config=processed_data,  # Guardar datos procesados en DB
                     )
                 )
                 db.commit()
@@ -415,6 +443,50 @@ def setup_endpoints(app):
                 db.rollback()
             finally:
                 db.close()
+
+        # Usar compresión mejorada para archivos grandes
+        try:
+            compressed_json, compression_metadata = _compress_with_metadata(payload)
+            
+            # Enviar al slave favorito con compresión
+            await manager.slave_connections[fav_id].send_text(compressed_json)
+            
+            logger.info(f"[GUARD UPLOAD] Datos enviados con compresión: "
+                       f"{compression_metadata['originalLength']} → {compression_metadata['compressedLength']} bytes "
+                       f"({'comprimido' if compression_metadata['compressed'] else 'sin comprimir'})")
+            
+            # Respuesta con metadatos de compresión
+            response_data = {
+                "ok": True,
+                "sent_to": fav_id,
+                "pixels": len(processed_data.get('originalPixels', [])),
+                "filename": guard.filename or "uploaded_guard.json",
+                "project_id": project_id,
+                "persisted": bool(project_id),
+                "originalLength": compression_metadata["originalLength"],
+                "compressedLength": compression_metadata["compressedLength"],
+                "compressed": compression_metadata["compressed"],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as send_error:
+            logger.error(f"Error enviando guardData comprimido: {send_error}")
+            # Fallback: envío directo sin compresión
+            try:
+                await manager.send_to_slave(fav_id, payload)
+                response_data = {
+                     "ok": True,
+                     "sent_to": fav_id,
+                     "pixels": len(processed_data.get('originalPixels', [])),
+                     "filename": guard.filename or "uploaded_guard.json",
+                     "project_id": project_id,
+                     "persisted": bool(project_id),
+                     "fallback": True,
+                     "timestamp": datetime.utcnow().isoformat()
+                 }
+            except Exception as fallback_error:
+                logger.error(f"Error en fallback guardData: {fallback_error}")
+                raise HTTPException(status_code=500, detail="Error enviando datos al slave")
 
             # Notificar a UIs que se creó un proyecto
             try:
@@ -425,12 +497,12 @@ def setup_endpoints(app):
                             "id": project_id,
                             "name": active_projects[project_id].name,
                             "mode": "Guard",
-                            "config": guard.data,
+                            "config": processed_data,  # Usar datos procesados, no originales
                         },
                     }
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error broadcasting project_created: {e}")
 
         # Limpiar preview_data previo en servidor (para evitar que persista el anterior)
         try:
@@ -465,7 +537,7 @@ def setup_endpoints(app):
             }
         )
 
-        return {"ok": True, "sent_to": fav_id, "filename": payload["filename"], "project_id": project_id, "persisted": bool(project_id)}
+        return response_data
     
     # === Endpoints de UI ===
     

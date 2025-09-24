@@ -8,6 +8,15 @@ import PatternSelector from "./PatternSelector.astro";
   <div id="config-disabled-hint" class="text-caption text-muted" style="display:none;">Conecta al menos un slave para configurar.</div>
 
   <div class="panel__content">
+    <!-- Modo de Operación -->
+    <div class="input-group">
+      <label class="input-label">Modo de Operación</label>
+      <select id="gc-operationMode" class="input">
+        <option value="protect">🛡️ Proteger - Reparar píxeles cambiados</option>
+        <option value="erase">🗑️ Borrar - Convertir píxeles a transparente</option>
+      </select>
+    </div>
+
     <!-- Protección / patrón -->
     <div>
       <!-- Componente con opciones y emojis alineados con Guard -->
@@ -45,6 +54,22 @@ import PatternSelector from "./PatternSelector.astro";
         <span class="text-body">Gastar todos al iniciar</span>
         <label class="switch">
           <input type="checkbox" id="gc-spendAllPixelsOnStart" />
+          <span class="switch__track"></span>
+          <span class="switch__thumb"></span>
+        </label>
+      </div>
+      <div class="switch-group">
+        <span class="text-body">Proteger píxeles transparentes</span>
+        <label class="switch">
+          <input type="checkbox" id="gc-protectTransparentPixels" checked />
+          <span class="switch__track"></span>
+          <span class="switch__thumb"></span>
+        </label>
+      </div>
+      <div class="switch-group">
+        <span class="text-body">Proteger perímetro</span>
+        <label class="switch">
+          <input type="checkbox" id="gc-protectPerimeter" />
           <span class="switch__track"></span>
           <span class="switch__thumb"></span>
         </label>
@@ -90,6 +115,10 @@ import PatternSelector from "./PatternSelector.astro";
       <div class="input-group">
         <label class="input-label">Umbral de color</label>
         <input type="number" id="gc-colorThreshold" min="0" max="255" class="input" />
+      </div>
+      <div id="gc-perimeter-width-container" class="input-group" style="display:none;">
+        <label class="input-label">Ancho del perímetro (píxeles)</label>
+        <input type="number" id="gc-perimeterWidth" min="1" max="10" value="1" class="input" />
       </div>
     </div>
 
