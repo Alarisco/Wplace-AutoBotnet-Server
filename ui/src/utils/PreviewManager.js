@@ -673,14 +673,33 @@ export class PreviewManager {
     
     try {
       fetch(`${this.dashboard.apiBase()}/api/guard/check`, { method: 'POST' })
-        .then(response => response.json())
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          } else if (response.status === 400) {
+            // 400 es normal cuando no hay slaves conectados
+            return response.json().then(data => {
+              if (data.detail && data.detail.includes('No favorite slave connected')) {
+                this.dashboard.log('ℹ️ No slaves connected for preview refresh (normal)');
+                return { ok: false, reason: 'no_slaves' };
+              }
+              throw new Error(data.detail || 'Bad request');
+            });
+          } else {
+            throw new Error(`HTTP ${response.status}`);
+          }
+        })
         .then(data => {
           if (data.ok) {
             this.dashboard.log('🔄 Preview refresh requested');
           }
         })
         .catch(error => {
-          this.dashboard.log(`⚠️ Error requesting preview refresh: ${error.message}`);
+          // Solo loggear errores reales, no cuando no hay slaves
+          if (!error.message.includes('No favorite slave connected') && 
+              !error.message.includes('no_slaves')) {
+            this.dashboard.log(`⚠️ Error requesting preview refresh: ${error.message}`);
+          }
         });
     } catch (error) {
       this.dashboard.log(`⚠️ Error in requestPreviewRefreshThrottle: ${error.message}`);

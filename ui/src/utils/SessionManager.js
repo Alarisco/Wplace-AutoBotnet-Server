@@ -179,8 +179,16 @@ export class SessionManager {
               if (statusEl) statusEl.textContent = `Loaded from server: ${js.filename || 'guard.json'}`;
               try { this.dashboard.previewManager.requestPreviewRefreshThrottle(); } catch {}
             }
+          } else if (resp.status === 404) {
+            // 404 es normal cuando no hay uploads previos, no es un error
+            this.dashboard.log('ℹ️ No previous guard upload found (normal on first load)');
           }
-        } catch {}
+        } catch (error) {
+          // Solo loggear errores reales de red, no 404s
+          if (error.message && !error.message.includes('404')) {
+            this.dashboard.log('⚠️ Error checking for previous guard upload: ' + error.message);
+          }
+        }
       }
 
       if (!this.dashboard.detectedBotMode || !this.dashboard.projectConfig) {
@@ -453,10 +461,60 @@ export class SessionManager {
           // Enviar guardData al favorito para rehidratar (si aplica)
           try {
             if (mode === 'Guard') {
+              // Calcular tamaño del JSON para determinar si necesita compresión
+              const jsonString = JSON.stringify({ filename: file.name, data: json });
+              const jsonSize = new Blob([jsonString]).size;
+              
+              this.dashboard.log(`📏 Guard JSON size: ${(jsonSize / 1024 / 1024).toFixed(2)}MB`);
+              
+              // Si el archivo es muy grande (>10MB), usar compresión
+              if (jsonSize > 10 * 1024 * 1024) {
+                this.dashboard.log('🗜️ Large file detected, applying compression...');
+                
+                // Asegurar que pako esté disponible
+                await this._ensurePako();
+                
+                // Comprimir usando gzip si está disponible
+                if (window.pako && window.pako.gzip) {
+                  try {
+                    const compressed = window.pako.gzip(jsonString);
+                    const compressedSize = compressed.length;
+                    const compressionRatio = ((jsonSize - compressedSize) / jsonSize * 100).toFixed(1);
+                    
+                    this.dashboard.log(`🗜️ Compressed: ${(jsonSize / 1024 / 1024).toFixed(2)}MB → ${(compressedSize / 1024 / 1024).toFixed(2)}MB (${compressionRatio}% reduction)`);
+                    
+                    // Enviar datos comprimidos con headers especiales
+                    fetch(`${this.dashboard.apiBase()}/api/guard/upload`, {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/octet-stream',
+                        'X-Content-Encoding': 'gzip',
+                        'X-Original-Filename': file.name,
+                        'X-Original-Size': jsonSize.toString()
+                      },
+                      body: compressed
+                    }).then(r => r.json()).then(resp => {
+                      this.dashboard.log(`📤 Guard upload sent (compressed) → fav=${resp.sent_to || 'n/a'} pixels=${json?.originalPixels?.length || json?.protectionData?.protectedPixels || 0}`);
+                    }).catch(err => {
+                      this.dashboard.log('❌ Guard upload error (compressed): ' + (err?.message || err));
+                      // Fallback: intentar sin compresión si falla
+                      this._fallbackUncompressedUpload(file, json);
+                    });
+                    
+                    return; // Salir temprano si la compresión funcionó
+                  } catch (compressionError) {
+                    this.dashboard.log('⚠️ Compression failed, trying uncompressed: ' + compressionError.message);
+                  }
+                } else {
+                  this.dashboard.log('⚠️ Pako not available, trying uncompressed upload');
+                }
+              }
+              
+              // Envío normal (sin compresión o archivos pequeños)
               fetch(`${this.dashboard.apiBase()}/api/guard/upload`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: file.name, data: json })
+                body: jsonString
               }).then(r => r.json()).then(resp => {
                 this.dashboard.log(`📤 Guard upload sent → fav=${resp.sent_to || 'n/a'} pixels=${json?.originalPixels?.length || json?.protectionData?.protectedPixels || 0}`);
               }).catch(err => {
@@ -485,6 +543,64 @@ export class SessionManager {
       reader.readAsText(file);
     } catch (ex) {
       this.dashboard.log('❌ Unexpected handleFileChange error: ' + (ex?.message || ex));
+    }
+  }
+
+  /**
+   * Asegurar que pako esté disponible para compresión
+   */
+  async _ensurePako() {
+    if (typeof window.pako !== 'undefined') {
+      return; // Ya está disponible
+    }
+
+    try {
+      // Intentar cargar pako dinámicamente
+      const pako = await import('pako');
+      window.pako = pako;
+      this.dashboard.log('📦 Pako loaded dynamically');
+    } catch (importError) {
+      this.dashboard.log('⚠️ Failed to load pako dynamically, trying CDN...');
+      
+      // Fallback: cargar desde CDN
+      return new Promise((resolve, reject) => {
+        if (typeof window.pako !== 'undefined') {
+          resolve();
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';
+        script.onload = () => {
+          this.dashboard.log('📦 Pako loaded from CDN');
+          resolve();
+        };
+        script.onerror = () => {
+          this.dashboard.log('❌ Failed to load pako from CDN');
+          reject(new Error('Failed to load pako'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+  }
+
+  /**
+   * Fallback para envío sin compresión cuando falla la compresión
+   */
+  _fallbackUncompressedUpload(file, json) {
+    try {
+      const jsonString = JSON.stringify({ filename: file.name, data: json });
+      fetch(`${this.dashboard.apiBase()}/api/guard/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: jsonString
+      }).then(r => r.json()).then(resp => {
+        this.dashboard.log(`📤 Guard upload sent (fallback) → fav=${resp.sent_to || 'n/a'} pixels=${json?.originalPixels?.length || json?.protectionData?.protectedPixels || 0}`);
+      }).catch(err => {
+        this.dashboard.log('❌ Guard upload error (fallback): ' + (err?.message || err));
+      });
+    } catch (fallbackError) {
+      this.dashboard.log('❌ Fallback upload failed: ' + fallbackError.message);
     }
   }
 
