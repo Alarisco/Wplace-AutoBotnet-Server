@@ -149,8 +149,8 @@ else
 fi
 
 # Levantar/actualizar servicios
-echo -e "$INFO Construyendo y levantando servicios en remoto…"
-run_remote "cd ${REMOTE_DIR} && ${COMPOSE_CMD} up -d --build"
+echo -e "$INFO Construyendo y levantando servicios en remoto… (BuildKit desactivado para compatibilidad)"
+run_remote "cd ${REMOTE_DIR} && DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 ${COMPOSE_CMD} up -d --build"
 echo -e "$OK Despliegue completado"
 
 # Health check básico
