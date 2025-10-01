@@ -92,7 +92,29 @@ def setup_repair_endpoints(app):
             
             # Convertir píxeles a formato de orden de reparación
             coords = [{'x': pixel['x'], 'y': pixel['y']} for pixel in slave_pixels]
-            colors = [pixel.get('color', 0) for pixel in slave_pixels]
+            # IMPORTANTE: No convertir None a int (transparente = colorId 0)
+            def safe_color(pixel):
+                # Soportar múltiples formatos:
+                # 1. Guard nuevo: {original: {colorId: X}}
+                # 2. Guard slave: {expectedColor: X}
+                # 3. Directo: {color: X} o {colorId: X}
+                # 4. Especial: {targetColorId: X}
+                
+                # Intentar targetColorId primero
+                if 'targetColorId' in pixel:
+                    col = pixel.get('targetColorId')
+                    return 0 if col is None else int(col)
+                
+                # Intentar formato nuevo con nested original.colorId
+                if 'original' in pixel and isinstance(pixel.get('original'), dict):
+                    col = pixel['original'].get('colorId')
+                    if col is not None:
+                        return int(col)
+                
+                # Fallback a formatos antiguos
+                col = pixel.get('expectedColor', pixel.get('color', pixel.get('colorId', 0)))
+                return 0 if col is None else int(col)
+            colors = [safe_color(pixel) for pixel in slave_pixels]
             
             # Enviar orden de reparación al slave
             await manager.send_to_slave(slave_id, {
@@ -172,7 +194,26 @@ def setup_repair_endpoints(app):
         preferred_ids = set(guard_config.get('preferredColorIds') or []) if guard_config.get('preferColor') else set()
         
         def _expected_color(ch):
-            return ch.get('expectedColor', ch.get('color', 0))
+            # Soportar múltiples formatos:
+            # 1. Guard nuevo: {original: {colorId: X}}
+            # 2. Guard slave: {expectedColor: X}
+            # 3. Directo: {color: X} o {colorId: X}
+            # 4. Especial: {targetColorId: X}
+            
+            # Intentar targetColorId primero
+            if 'targetColorId' in ch:
+                col = ch.get('targetColorId')
+                return 0 if col is None else int(col)
+            
+            # Intentar formato nuevo con nested original.colorId
+            if 'original' in ch and isinstance(ch.get('original'), dict):
+                col = ch['original'].get('colorId')
+                if col is not None:
+                    return int(col)
+            
+            # Fallback a formatos antiguos
+            col = ch.get('expectedColor', ch.get('color', ch.get('colorId', 0)))
+            return 0 if col is None else col
         
         # Filtrar excluidos
         filtered_changes = [ch for ch in changes if _expected_color(ch) not in excluded_ids]
@@ -211,7 +252,29 @@ def setup_repair_endpoints(app):
                 continue
                 
             coords = [{'x': c['x'], 'y': c['y']} for c in slave_changes]
-            colors = [c.get('expectedColor', c.get('color', 0)) for c in slave_changes]
+            # IMPORTANTE: No convertir None a int (transparente = colorId 0)
+            def safe_color(c):
+                # Soportar múltiples formatos:
+                # 1. Guard nuevo: {original: {colorId: X}}
+                # 2. Guard slave: {expectedColor: X}
+                # 3. Directo: {color: X} o {colorId: X}
+                # 4. Especial: {targetColorId: X}
+                
+                # Intentar targetColorId primero
+                if 'targetColorId' in c:
+                    col = c.get('targetColorId')
+                    return 0 if col is None else int(col)
+                
+                # Intentar formato nuevo con nested original.colorId
+                if 'original' in c and isinstance(c.get('original'), dict):
+                    col = c['original'].get('colorId')
+                    if col is not None:
+                        return int(col)
+                
+                # Fallback a formatos antiguos
+                col = c.get('expectedColor', c.get('color', c.get('colorId', 0)))
+                return 0 if col is None else int(col)
+            colors = [safe_color(c) for c in slave_changes]
             
             await manager.send_to_slave(sid, {
                 "type": "repairOrder",

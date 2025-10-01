@@ -100,7 +100,26 @@ def setup_session_endpoints(app):
             preferred_ids = set(guard_config.get('preferredColorIds') or []) if guard_config.get('preferColor') else set()
             
             def exp_color(c):
-                return c.get('expectedColor', c.get('color', 0))
+                # Soportar múltiples formatos:
+                # 1. Formato Guard nuevo (processor.js): {original: {colorId: X}, current: {colorId: Y}}
+                # 2. Formato Guard slave antiguo: {expectedColor: X}
+                # 3. Formato directo: {color: X} o {colorId: X}
+                # 4. Formato especial: {targetColorId: X} (para transparent_repair, erase, etc)
+                
+                # Intentar targetColorId primero (para modos especiales)
+                if 'targetColorId' in c:
+                    col = c.get('targetColorId')
+                    return 0 if col is None else int(col)
+                
+                # Intentar formato nuevo con nested original.colorId
+                if 'original' in c and isinstance(c.get('original'), dict):
+                    col = c['original'].get('colorId')
+                    if col is not None:
+                        return int(col)
+                
+                # Fallback a formatos antiguos
+                col = c.get('expectedColor', c.get('color', c.get('colorId', 0)))
+                return 0 if col is None else int(col)
                 
             changes = [c for c in changes if exp_color(c) not in excluded_ids]
             
@@ -394,7 +413,33 @@ def setup_session_endpoints(app):
                                 
                                 # Preparar coords y colors para este tile
                                 coords = [{'x': ch['x'], 'y': ch['y']} for ch in tile_items]
-                                colors = [int(ch.get('expectedColor', ch.get('color', 0))) for ch in tile_items]
+                                # IMPORTANTE: No convertir a int si es None (transparente)
+                                # colorId 0 = transparente, debe enviarse como 0 (no confundir con negro RGB(0,0,0))
+                                def get_color_id(ch):
+                                    # Soportar múltiples formatos:
+                                    # 1. Guard nuevo: {original: {colorId: X}}
+                                    # 2. Guard slave: {expectedColor: X}
+                                    # 3. Directo: {color: X} o {colorId: X}
+                                    # 4. Especial: {targetColorId: X}
+                                    
+                                    # Intentar targetColorId primero (para modos especiales)
+                                    if 'targetColorId' in ch:
+                                        col = ch.get('targetColorId')
+                                        return 0 if col is None else int(col)
+                                    
+                                    # Intentar formato nuevo con nested original.colorId
+                                    if 'original' in ch and isinstance(ch.get('original'), dict):
+                                        col = ch['original'].get('colorId')
+                                        if col is not None:
+                                            return int(col)
+                                    
+                                    # Fallback a formatos antiguos
+                                    color = ch.get('expectedColor', ch.get('color', ch.get('colorId', 0)))
+                                    # Si el color es None (transparente), devolver 0
+                                    if color is None:
+                                        return 0
+                                    return int(color)
+                                colors = [get_color_id(ch) for ch in tile_items]
                                 
                                 if coords:
                                     payload = {
@@ -715,7 +760,11 @@ def setup_session_endpoints(app):
                 
                 # Preparar coords y colors para este tile
                 coords = [{'x': ch['x'], 'y': ch['y']} for ch in tile_items]
-                colors = [int(ch.get('expectedColor', ch.get('color', 0))) for ch in tile_items]
+                # IMPORTANTE: No convertir None a int (transparente = colorId 0)
+                def safe_color(ch):
+                    col = ch.get('expectedColor', ch.get('color', ch.get('colorId', 0)))
+                    return 0 if col is None else int(col)
+                colors = [safe_color(ch) for ch in tile_items]
                 
                 payload = {
                     'tileX': tx,
