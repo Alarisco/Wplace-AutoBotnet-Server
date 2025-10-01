@@ -738,14 +738,41 @@ class WPlaceDashboard {
 
   recomputeRoundPlan() {
     this.currentRoundPlan = {};
+    
+    // Obtener configuración actual desde ConfigManager
+    const guardConfig = this.configManager?.guardConfig || {};
+    const pixelsPerBatch = parseInt(guardConfig.pixelsPerBatch) || 10;
+    const minChargesToWait = parseInt(guardConfig.minChargesToWait) || 20;
+    const spendAll = guardConfig.spendAllPixelsOnStart === true;
+    
     const selectedSlaves = Array.from(document.querySelectorAll('.slave-toggle:checked'));
     selectedSlaves.forEach(cb => {
       const slaveId = cb.value;
       const slave = this.slaveManager.slaves.get(slaveId);
       if (slave && slave.telemetry) {
         const charges = slave.telemetry.remaining_charges || 0;
-        this.currentRoundPlan[slaveId] = Math.min(charges, 10);
-        this.slaveManager.updateSlaveCardQuota(slaveId, this.currentRoundPlan[slaveId], charges > 0 ? (this.currentRoundPlan[slaveId] / charges) : 0);
+        
+        // Calcular cuota según lógica de Guard:
+        let quota = 0;
+        
+        if (spendAll) {
+          // Modo spend all: gastar todo menos un mínimo de seguridad
+          const safetyMin = Math.min(5, minChargesToWait);
+          quota = Math.max(0, charges - safetyMin);
+        } else {
+          // Modo normal: un slave es elegible si tiene minChargesToWait + pixelsPerBatch
+          const required = minChargesToWait + pixelsPerBatch;
+          const isEligible = charges >= required;
+          
+          if (isEligible) {
+            // Calcular capacidad: cargas disponibles - mínimo a mantener, limitado al tamaño de lote
+            const spendable = Math.max(0, charges - minChargesToWait);
+            quota = Math.min(spendable, pixelsPerBatch);
+          }
+        }
+        
+        this.currentRoundPlan[slaveId] = quota;
+        this.slaveManager.updateSlaveCardQuota(slaveId, quota, charges > 0 ? (quota / charges) : 0);
       }
     });
   }

@@ -41,6 +41,7 @@ active_sessions: Dict[str, SessionConfig] = {}
 # Configuración Guard global
 guard_config: Dict[str, Any] = {
     # Valores básicos iniciales (coinciden con defaults de guardState relevantes)
+    "operationMode": "protect",  # 'protect' o 'erase'
     "protectionPattern": "random",
     "preferColor": False,
     "preferredColorIds": [],
@@ -49,12 +50,17 @@ guard_config: Dict[str, Any] = {
     "spendAllPixelsOnStart": False,
     "minChargesToWait": 20,
     "pixelsPerBatch": 10,
+    "maxRetries": 3,  # Máximo de reintentos por lote
+    "chargeStrategy": "greedy",  # 'greedy', 'balanced', 'round_robin'
     "randomWaitTime": False,
     "randomWaitMin": 5,
     "randomWaitMax": 15,
     "colorThreshold": 10,
     "colorComparisonMethod": "rgb",  # nuevo: 'rgb' o 'lab'
     "recentLockSeconds": 60,  # nuevo: TTL de bloqueo tras pintar (segundos)
+    "protectTransparentPixels": True,  # Proteger píxeles transparentes por defecto
+    "protectPerimeter": False,  # Proteger perímetro desactivado por defecto
+    "perimeterWidth": 1,  # Ancho del perímetro en píxeles
 }
 
 # Conexiones WebSocket

@@ -254,29 +254,58 @@ def setup_session_endpoints(app):
                             continue
                         
                         # 4. Planificación con estrategias
+                        # IMPORTANTE: pixelsPerBatch ahora es POR SLAVE, no total
                         pixels_per_batch = int(guard_config.get('pixelsPerBatch') or 10)
                         min_charges_to_wait = int(guard_config.get('minChargesToWait') or 20)
                         spend_all = bool(guard_config.get('spendAllPixelsOnStart'))
                         strategy = str(guard_config.get('chargeStrategy', 'greedy')).lower()
 
-                        sum_charges = sum(charges.values())
-                        desired = sum_charges if spend_all else min(sum_charges, pixels_per_batch)
-                        if desired <= 0:
-                            await asyncio.sleep(5)
-                            continue
-
-                        # Esperar si no alcanzamos las cargas mínimas y no es spend_all
-                        if not spend_all and sum_charges < min_charges_to_wait:
-                            logger.info(f"[planner] Waiting for minimum charges: need {min_charges_to_wait} have {sum_charges}")
+                        # Calcular slaves elegibles (que tengan cargas >= minChargesToWait + pixelsPerBatch)
+                        # Similar a Guard: cada slave necesita minChargesToWait + pixelsPerBatch para participar
+                        eligible_slaves = {}
+                        for sid in current_valid_slaves:
+                            slave_charges = charges.get(sid, 0)
+                            # Un slave es elegible si tiene suficientes cargas para un lote completo
+                            # manteniendo el mínimo reservado
+                            if spend_all or slave_charges >= (min_charges_to_wait + pixels_per_batch):
+                                eligible_slaves[sid] = slave_charges
+                        
+                        if not eligible_slaves:
+                            # Si ningún slave es elegible, esperar
+                            sum_charges = sum(charges.values())
+                            required_per_slave = min_charges_to_wait + pixels_per_batch
+                            logger.info(f"[planner] No eligible slaves. Need {required_per_slave} charges per slave, have {sum_charges} total")
                             await asyncio.sleep(10)
                             continue
 
-                        plan = compute_distribution(strategy, {sid: charges[sid] for sid in current_valid_slaves}, desired)
+                        # Calcular cuántos píxeles puede pintar cada slave elegible
+                        # Respetando el límite de pixelsPerBatch POR SLAVE
+                        slave_capacities = {}
+                        total_capacity = 0
+                        for sid, slave_charges in eligible_slaves.items():
+                            if spend_all:
+                                # Gastar todas las cargas disponibles manteniendo mínimo de seguridad
+                                safety_min = min(5, min_charges_to_wait)
+                                capacity = max(0, slave_charges - safety_min)
+                            else:
+                                # Capacidad normal: lo que tenga por encima del mínimo, limitado al lote
+                                spendable = max(0, slave_charges - min_charges_to_wait)
+                                capacity = min(spendable, pixels_per_batch)
+                            
+                            slave_capacities[sid] = capacity
+                            total_capacity += capacity
+                        
+                        if total_capacity <= 0:
+                            await asyncio.sleep(5)
+                            continue
+
+                        # El plan ahora usa las capacidades calculadas (cada slave su propio lote)
+                        plan = slave_capacities.copy()
                         if not any(v > 0 for v in plan.values()):
                             await asyncio.sleep(5)
                             continue
                         idx = 0  # reutilizado más adelante en reintentos
-                        logger.info("[planner] strategy=%s desired=%d plan=%s", strategy, desired, plan)
+                        logger.info("[planner] strategy=%s total_capacity=%d plan=%s", strategy, total_capacity, plan)
                         
                         try:
                             changes = [ch for ch in changes if not is_locked_change(ch)]

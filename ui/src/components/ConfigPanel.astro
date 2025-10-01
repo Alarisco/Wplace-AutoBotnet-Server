@@ -12,7 +12,7 @@ import PatternSelector from "./PatternSelector.astro";
     <div class="input-group">
       <label class="input-label">Modo de Operación</label>
       <select id="gc-operationMode" class="input">
-        <option value="protect">🛡️ Proteger - Reparar píxeles cambiados</option>
+        <option value="protect" selected>🛡️ Proteger - Reparar píxeles cambiados</option>
         <option value="erase">🗑️ Borrar - Convertir píxeles a transparente</option>
       </select>
     </div>
@@ -81,10 +81,16 @@ import PatternSelector from "./PatternSelector.astro";
       <div class="input-group">
         <label class="input-label">Cargas mínimas para esperar</label>
         <input type="number" id="gc-minChargesToWait" min="0" class="input" />
+        <div class="text-[10px] text-muted-foreground" style="margin-top: -4px; opacity: 0.7;">
+          Reserva de cargas que cada slave mantendrá
+        </div>
       </div>
       <div class="input-group">
-        <label class="input-label">Píxeles por lote</label>
+        <label class="input-label">Píxeles por lote (por slave)</label>
         <input type="number" id="gc-pixelsPerBatch" min="1" class="input" />
+        <div class="text-[10px] text-muted-foreground" style="margin-top: -4px; opacity: 0.7;">
+          Cada slave pintará este número de píxeles por lote
+        </div>
       </div>
       <div class="input-group">
         <label class="input-label">Máximo reintentos por lote</label>
@@ -93,7 +99,7 @@ import PatternSelector from "./PatternSelector.astro";
       <div class="input-group">
         <label class="input-label">Estrategia de distribución</label>
         <select id="gc-chargeStrategy" class="input">
-          <option value="greedy">Greedy (óptimo API)</option>
+          <option value="greedy" selected>Greedy (óptimo API)</option>
           <option value="balanced">Balanced (proporcional)</option>
           <option value="round_robin">Round Robin</option>
         </select>
@@ -163,11 +169,81 @@ import PatternSelector from "./PatternSelector.astro";
     }
   }
   
+  @media (max-width: 639px) {
+    .switch-group span {
+      font-size: 13px;
+    }
+    
+    .input-label {
+      font-size: 13px;
+    }
+  }
+  
   .switch-group {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    min-height: 40px;
+  }
+  
+  .switch-group span {
+    flex: 1;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: calc(100% - 60px);
+  }
+  
+  /* Switch styles - asegurar visibilidad */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  
+  .switch__track {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-full, 9999px);
+    background-color: hsl(var(--border));
+    transition: background-color 150ms ease-out;
+    cursor: pointer;
+  }
+  
+  .switch__thumb {
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: var(--radius-full, 9999px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 150ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+  }
+  
+  .switch:has(input:checked) .switch__track {
+    background-color: hsl(var(--primary));
+  }
+  
+  .switch:has(input:checked) .switch__thumb {
+    transform: translateY(-50%) translateX(20px);
+  }
+  
+  .switch:hover .switch__track {
+    opacity: 0.9;
   }
   
   .input-group {
@@ -180,6 +256,9 @@ import PatternSelector from "./PatternSelector.astro";
     color: hsl(var(--foreground));
     font-size: var(--text-sm);
     font-weight: 500;
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
   
   .color-section-header {

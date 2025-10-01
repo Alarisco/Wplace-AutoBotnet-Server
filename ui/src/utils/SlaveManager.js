@@ -83,8 +83,14 @@ export class SlaveManager {
           </div>
           <div class="text-xs text-muted-foreground">${slave.status || ''}</div>
           <div class="text-xs text-muted-foreground">Charges: <span id="slave-${slave.id}-charges">${this._formatCharges(slave)}</span></div>
-          <div class="text-[11px] text-muted-foreground mt-1">Quota next: <span id="slave-${slave.id}-quota">0</span></div>
-          <div class="w-40 h-1.5 bg-muted rounded mt-1"><div id="slave-${slave.id}-quota-bar" class="h-1.5 bg-blue-500 rounded" style="width:0%"></div></div>
+          <div class="text-[11px] text-muted-foreground mt-1">
+            <span id="slave-${slave.id}-quota-label">Next batch:</span> 
+            <span id="slave-${slave.id}-quota" class="font-medium">--</span>
+          </div>
+          <div class="w-40 h-1.5 bg-muted rounded mt-1">
+            <div id="slave-${slave.id}-quota-bar" class="h-1.5 bg-blue-500 rounded transition-all" style="width:0%"></div>
+          </div>
+          <div class="text-[10px] mt-0.5" id="slave-${slave.id}-status" style="opacity: 0.6;"></div>
         </div>
         <div class="flex items-center">
           <label class="relative inline-flex w-9 h-5 items-center cursor-pointer select-none">
@@ -257,12 +263,16 @@ export class SlaveManager {
     let totalRepaired = 0, totalMissing = 0, totalAbsent = 0, totalCharges = 0;
     let guardCorrect = 0, guardIncorrect = 0, guardMissing = 0;
 
+    // Calcular también capacidad máxima total
+    let totalMaxCharges = 0;
+    
     this.slaves.forEach(slave => {
       if (!slave.telemetry) return;
       totalRepaired += slave.telemetry.repaired_pixels || 0;
       totalMissing += slave.telemetry.missing_pixels || 0;
       totalAbsent += slave.telemetry.absent_pixels || 0;
       totalCharges += slave.telemetry.remaining_charges || 0;
+      totalMaxCharges += slave.telemetry.max_charges || 50; // Default 50 si no está disponible
       
       // Métricas Guard si disponibles (del favorito)
       guardCorrect += slave.telemetry.correctPixels || 0;
@@ -292,7 +302,8 @@ export class SlaveManager {
     if (rp) rp.textContent = String(guardCorrect);
     if (inc) inc.textContent = String(guardIncorrect);
     if (miss) miss.textContent = String(guardMissing);
-    if (rc) rc.textContent = String(totalCharges);
+    // Formato X/Y para mostrar disponible/capacidad total
+    if (rc) rc.textContent = `${totalCharges}/${totalMaxCharges}`;
   }
 
   /**
@@ -316,14 +327,100 @@ export class SlaveManager {
   }
 
   /**
-   * Actualiza la cuota visual de un slave
+   * Actualiza la cuota visual de un slave con información contextual
    */
   updateSlaveCardQuota(slaveId, quota, percentage) {
     const quotaEl = document.getElementById(`slave-${slaveId}-quota`);
+    const labelEl = document.getElementById(`slave-${slaveId}-quota-label`);
     const barEl = document.getElementById(`slave-${slaveId}-quota-bar`);
+    const statusEl = document.getElementById(`slave-${slaveId}-status`);
     
-    if (quotaEl) quotaEl.textContent = String(quota);
-    if (barEl) barEl.style.width = `${Math.min(100, Math.max(0, percentage * 100))}%`;
+    const slave = this.slaves.get(slaveId);
+    if (!slave) return;
+    
+    const currentCharges = slave?.telemetry?.remaining_charges || 0;
+    
+    // Obtener configuración real desde dashboard
+    const guardConfig = this.dashboard?.configManager?.guardConfig || {};
+    const pixelsPerBatch = parseInt(guardConfig.pixelsPerBatch) || 10;
+    const minCharges = parseInt(guardConfig.minChargesToWait) || 20;
+    const spendAll = guardConfig.spendAllPixelsOnStart === true;
+    
+    // Determinar si el slave es elegible para el próximo lote
+    let required, isEligible;
+    
+    if (spendAll) {
+      // En modo spend all, solo necesita tener algunas cargas
+      required = Math.min(5, minCharges);
+      isEligible = currentCharges >= required;
+    } else {
+      // Modo normal: necesita minCharges + pixelsPerBatch
+      required = minCharges + pixelsPerBatch;
+      isEligible = currentCharges >= required;
+    }
+    
+    if (quotaEl) {
+      if (quota > 0) {
+        // Tiene trabajo asignado
+        quotaEl.textContent = `${quota} px`;
+        quotaEl.style.color = '#10b981'; // verde
+      } else if (isEligible) {
+        // Elegible pero sin trabajo asignado
+        const spendable = Math.max(0, currentCharges - minCharges);
+        const canPaint = Math.min(spendable, pixelsPerBatch);
+        quotaEl.textContent = canPaint > 0 ? `${canPaint} px` : 'Ready';
+        quotaEl.style.color = canPaint > 0 ? '#10b981' : '#3b82f6';
+      } else {
+        // No elegible - esperando cargas
+        quotaEl.textContent = 'Waiting';
+        quotaEl.style.color = '#f59e0b';
+      }
+    }
+    
+    if (labelEl) {
+      if (quota > 0) {
+        labelEl.textContent = 'Assigned:';
+      } else if (isEligible) {
+        labelEl.textContent = 'Capacity:';
+      } else {
+        labelEl.textContent = 'Status:';
+      }
+    }
+    
+    if (barEl) {
+      const width = Math.min(100, Math.max(0, percentage * 100));
+      barEl.style.width = `${width}%`;
+      
+      // Color de la barra según estado
+      if (quota > 0) {
+        barEl.style.backgroundColor = '#3b82f6'; // azul - trabajando
+      } else if (isEligible) {
+        barEl.style.backgroundColor = '#10b981'; // verde - listo
+      } else {
+        barEl.style.backgroundColor = '#f59e0b'; // naranja - esperando
+      }
+    }
+    
+    if (statusEl) {
+      if (quota > 0) {
+        statusEl.textContent = `${Math.round(percentage * 100)}% of available`;
+        statusEl.style.color = '#3b82f6';
+      } else if (!isEligible) {
+        const needed = Math.ceil(required - currentCharges);
+        if (spendAll) {
+          statusEl.textContent = `Need ${needed}+ charges (safety min: ${required})`;
+        } else {
+          statusEl.textContent = `⏳ Need ${required} total (has ${currentCharges})`;
+        }
+        statusEl.style.color = '#f59e0b';
+      } else {
+        // Elegible pero sin trabajo asignado aún
+        const spendable = Math.max(0, currentCharges - minCharges);
+        const canPaint = Math.min(spendable, pixelsPerBatch);
+        statusEl.textContent = `Can paint ${canPaint} px`;
+        statusEl.style.color = '#10b981';
+      }
+    }
   }
 
   /**

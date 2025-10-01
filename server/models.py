@@ -72,6 +72,7 @@ class SelectedSlavesUpdate(BaseModel):
 
 class GuardConfigUpdate(BaseModel):
     """Actualización de configuración Guard."""
+    operationMode: Optional[str] = None  # 'protect' | 'erase'
     protectionPattern: Optional[str] = None
     preferColor: Optional[bool] = None
     preferredColorIds: Optional[List[int]] = None
@@ -80,12 +81,17 @@ class GuardConfigUpdate(BaseModel):
     spendAllPixelsOnStart: Optional[bool] = None
     minChargesToWait: Optional[int] = None
     pixelsPerBatch: Optional[int] = None
+    maxRetries: Optional[int] = None  # Máximo de reintentos por lote
+    chargeStrategy: Optional[str] = None  # 'greedy' | 'balanced' | 'round_robin'
     randomWaitTime: Optional[bool] = None
     randomWaitMin: Optional[float] = None
     randomWaitMax: Optional[float] = None
     colorThreshold: Optional[int] = None
     colorComparisonMethod: Optional[str] = None  # 'rgb' | 'lab'
     recentLockSeconds: Optional[int] = None  # TTL de bloqueo tras pintar (segundos)
+    protectTransparentPixels: Optional[bool] = None  # Proteger píxeles transparentes
+    protectPerimeter: Optional[bool] = None  # Proteger perímetro
+    perimeterWidth: Optional[int] = None  # Ancho del perímetro en píxeles
 
 
 class GuardRepairRequest(BaseModel):

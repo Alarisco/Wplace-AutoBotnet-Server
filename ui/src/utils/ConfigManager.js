@@ -48,6 +48,8 @@ export class ConfigManager {
         this.applyGuardConfigToForm();
         this.ensureInlineSectionsVisibility();
         this.renderAllInlineChips();
+        // Forzar actualización visual de todos los toggles después de aplicar config
+        this.refreshAllToggles();
       } catch {}
     } catch (e) {
       if (st) st.textContent = 'Error loading config';
@@ -58,10 +60,53 @@ export class ConfigManager {
   }
 
   /**
+   * Refresca el estado visual de todos los toggles
+   */
+  refreshAllToggles() {
+    const toggleIds = [
+      'gc-preferColor',
+      'gc-excludeColor',
+      'gc-randomWaitTime',
+      'gc-spendAllPixelsOnStart',
+      'gc-protectTransparentPixels',
+      'gc-protectPerimeter'
+    ];
+    
+    toggleIds.forEach(id => {
+      const input = document.getElementById(id);
+      if (input && input.type === 'checkbox') {
+        this.updateToggleVisual(id, input.checked);
+      }
+    });
+  }
+
+  /**
    * Aplica la configuración Guard al formulario
    */
   applyGuardConfigToForm() {
     const cfg = this.guardConfig || {};
+    
+    // Valores por defecto (deben coincidir con server/storage.py)
+    const defaults = {
+      operationMode: 'protect',
+      protectionPattern: 'random',
+      preferColor: false,
+      excludeColor: false,
+      spendAllPixelsOnStart: false,
+      randomWaitTime: false,
+      protectTransparentPixels: true,
+      protectPerimeter: false,
+      minChargesToWait: 20,
+      pixelsPerBatch: 10,
+      maxRetries: 3,
+      chargeStrategy: 'greedy',
+      recentLockSeconds: 60,
+      randomWaitMin: 5,
+      randomWaitMax: 15,
+      colorThreshold: 10,
+      perimeterWidth: 1
+    };
+    
     const map = [
       ['gc-operationMode', 'operationMode'],
       ['gc-protectionPattern', 'protectionPattern'],
@@ -86,13 +131,15 @@ export class ConfigManager {
       const elem = document.getElementById(elemId);
       if (!elem) continue;
       
-      const val = cfg[cfgKey];
+      // Usar valor del servidor, o valor por defecto si no existe
+      const val = cfg[cfgKey] !== undefined ? cfg[cfgKey] : defaults[cfgKey];
+      
       if (type === 'checkbox') {
         elem.checked = !!val;
-        // Actualizar estado visual del toggle si existe
-        this.dashboard.uiHelpers?.updateToggleState?.(elemId, !!val);
+        // Actualizar estado visual del toggle
+        this.updateToggleVisual(elemId, !!val);
       } else {
-        elem.value = val ?? (elem.type === 'number' ? 0 : '');
+        elem.value = val ?? '';
       }
     }
     
@@ -100,10 +147,41 @@ export class ConfigManager {
     this.ensureInlineSectionsVisibility();
     
     // Manejar visibilidad del contenedor de ancho de perímetro
-    const protectPerimeter = cfg.protectPerimeter !== false; // default true
+    const protectPerimeter = cfg.protectPerimeter ?? defaults.protectPerimeter;
     const perimeterContainer = document.getElementById('gc-perimeter-width-container');
     if (perimeterContainer) {
       perimeterContainer.style.display = protectPerimeter ? 'block' : 'none';
+    }
+  }
+
+  /**
+   * Actualiza el estado visual de un toggle
+   */
+  updateToggleVisual(id, checked) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    
+    // Actualizar el estado del input
+    input.checked = checked;
+    
+    // Buscar el switch container
+    const label = input.closest('label');
+    if (!label) return;
+    
+    // Actualizar track y thumb
+    const track = label.querySelector('.switch__track');
+    const thumb = label.querySelector('.switch__thumb');
+    
+    if (track) {
+      track.style.backgroundColor = checked 
+        ? 'hsl(var(--primary))' 
+        : 'hsl(var(--border))';
+    }
+    
+    if (thumb) {
+      thumb.style.transform = checked 
+        ? 'translateY(-50%) translateX(18px)' 
+        : 'translateY(-50%) translateX(0)';
     }
   }
 
@@ -113,11 +191,14 @@ export class ConfigManager {
   async saveGuardConfig() {
     const payload = {};
     const fields = [
+      ['gc-operationMode', 'operationMode', 'value'],
       ['gc-protectionPattern', 'protectionPattern', 'value'],
       ['gc-preferColor', 'preferColor', 'checked'],
       ['gc-excludeColor', 'excludeColor', 'checked'],
       ['gc-spendAllPixelsOnStart', 'spendAllPixelsOnStart', 'checked'],
       ['gc-randomWaitTime', 'randomWaitTime', 'checked'],
+      ['gc-protectTransparentPixels', 'protectTransparentPixels', 'checked'],
+      ['gc-protectPerimeter', 'protectPerimeter', 'checked'],
       ['gc-minChargesToWait', 'minChargesToWait', 'value', 'int'],
       ['gc-pixelsPerBatch', 'pixelsPerBatch', 'value', 'int'],
       ['gc-maxRetries', 'maxRetries', 'value', 'int'],
@@ -125,7 +206,8 @@ export class ConfigManager {
       ['gc-recentLockSeconds', 'recentLockSeconds', 'value', 'int'],
       ['gc-randomWaitMin', 'randomWaitMin', 'value', 'float'],
       ['gc-randomWaitMax', 'randomWaitMax', 'value', 'float'],
-      ['gc-colorThreshold', 'colorThreshold', 'value', 'int']
+      ['gc-colorThreshold', 'colorThreshold', 'value', 'int'],
+      ['gc-perimeterWidth', 'perimeterWidth', 'value', 'int']
     ];
     
     fields.forEach(([id, key, prop, cast]) => {
@@ -179,14 +261,14 @@ export class ConfigManager {
       if (!el) return;
       
       // estado visual inicial
-      this.dashboard.updateToggleState(id, el.checked);
+      this.updateToggleVisual(id, el.checked);
       if (sectionId) {
         const sec = document.getElementById(sectionId);
         if (sec) sec.style.display = el.checked ? '' : 'none';
       }
       
       el.addEventListener('change', () => {
-        this.dashboard.updateToggleState(id, el.checked);
+        this.updateToggleVisual(id, el.checked);
         if (sectionId) {
           const sec = document.getElementById(sectionId);
           if (sec) sec.style.display = el.checked ? '' : 'none';
