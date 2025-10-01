@@ -205,11 +205,14 @@ def setup_session_endpoints(app):
 
         async def orchestrate_loop():
             try:
+                logger.info(f"[orchestrate_loop] Starting orchestration loop for session {session_id}")
                 while active_protect_loops.get(session_id, {}).get('running'):
                     try:
                         # 1. Slaves válidos
                         current_valid_slaves = [sid for sid in session.slave_ids if sid in connected_slaves]
+                        logger.debug(f"[orchestrate_loop] Valid slaves: {current_valid_slaves}")
                         if not current_valid_slaves:
+                            logger.warning(f"[orchestrate_loop] No valid slaves connected, waiting...")
                             await asyncio.sleep(3)
                             continue
                         
@@ -227,6 +230,8 @@ def setup_session_endpoints(app):
                         preview = (fav.telemetry.get('preview_data') if fav and isinstance(fav.telemetry, dict) else None) or {}
                         changes = await filter_changes(preview)
                         
+                        logger.debug(f"[orchestrate_loop] Fav slave: {fav_id}, Preview has {len(preview.get('changes', []))} raw changes")
+                        
                         if not isinstance(changes, list):
                             changes = []
                         else:
@@ -234,6 +239,8 @@ def setup_session_endpoints(app):
                             if bad:
                                 logger.warning(f"[orchestrate_loop] Ignorando {len(bad)} cambios no dict")
                                 changes = [c for c in changes if isinstance(c, dict)]
+                        
+                        logger.info(f"[orchestrate_loop] After filtering: {len(changes)} changes to process")
                         
                         # 3. Cargas
                         charges: Dict[str, int] = {}
@@ -247,9 +254,11 @@ def setup_session_endpoints(app):
                             total_remaining += rem
                         
                         if not changes:
+                            logger.info(f"[orchestrate_loop] No changes to process, waiting 5s...")
                             await asyncio.sleep(5)
                             continue
                         if total_remaining <= 0:
+                            logger.warning(f"[orchestrate_loop] No charges remaining across all slaves, waiting 30s...")
                             await asyncio.sleep(30)
                             continue
                         
@@ -274,9 +283,11 @@ def setup_session_endpoints(app):
                             # Si ningún slave es elegible, esperar
                             sum_charges = sum(charges.values())
                             required_per_slave = min_charges_to_wait + pixels_per_batch
-                            logger.info(f"[planner] No eligible slaves. Need {required_per_slave} charges per slave, have {sum_charges} total")
+                            logger.warning(f"[planner] No eligible slaves. Need {required_per_slave} charges per slave (min={min_charges_to_wait} + batch={pixels_per_batch}), have {sum_charges} total. Charges per slave: {charges}")
                             await asyncio.sleep(10)
                             continue
+                        
+                        logger.info(f"[planner] Eligible slaves: {list(eligible_slaves.keys())} with charges {eligible_slaves}")
 
                         # Calcular cuántos píxeles puede pintar cada slave elegible
                         # Respetando el límite de pixelsPerBatch POR SLAVE
@@ -317,11 +328,24 @@ def setup_session_endpoints(app):
                             await asyncio.sleep(5)
                             continue
                         
+                        # Extraer área del preview para calcular centros correctos
+                        area = None
+                        try:
+                            area = preview.get('protectedArea') or preview.get('area')
+                            if area:
+                                logger.info(f"[orchestrate_loop] Using area for pattern calculation: startX={area.get('startX')}, startY={area.get('startY')}, width={area.get('width')}, height={area.get('height')}")
+                            else:
+                                logger.warning(f"[orchestrate_loop] No area found in preview for pattern calculation. Preview keys: {list(preview.keys())}")
+                        except Exception as e:
+                            logger.error(f"[orchestrate_loop] Error extracting area: {e}")
+                            pass
+                        
                         try:
                             selected = select_pixels_by_pattern(
                                 str(guard_config.get('protectionPattern', 'random')), 
                                 changes, 
-                                pick
+                                pick,
+                                area
                             )
                         except Exception:
                             selected = changes[:pick]
@@ -630,12 +654,25 @@ def setup_session_endpoints(app):
         if pick <= 0:
             return {"ok": True, "session_id": session_id, "assigned": 0, "reason": "no_pick", "total_remaining": total_remaining}
             
+        # Extraer área del preview para calcular centros correctos
+        area = None
+        try:
+            area = preview.get('protectedArea') or preview.get('area')
+            if area:
+                logger.info(f"[_do_one_guard_round] Using area for pattern calculation: startX={area.get('startX')}, startY={area.get('startY')}, width={area.get('width')}, height={area.get('height')}")
+            else:
+                logger.warning(f"[_do_one_guard_round] No area found in preview for pattern calculation. Preview keys: {list(preview.keys())}")
+        except Exception as e:
+            logger.error(f"[_do_one_guard_round] Error extracting area: {e}")
+            pass
+            
         # Aplicar patrón de protección
         try:
             selected = select_pixels_by_pattern(
                 str(guard_config.get('protectionPattern', 'random')), 
                 changes, 
-                pick
+                pick,
+                area
             )
         except Exception:
             selected = changes[:pick]

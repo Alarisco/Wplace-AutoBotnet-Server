@@ -332,4 +332,24 @@ import PatternSelector from "./PatternSelector.astro";
     border-top: 1px solid hsl(var(--border));
     margin-top: var(--space-4);
   }
+  
+  /* Responsive improvements */
+  @media (max-width: 640px) {
+    .config-section {
+      grid-template-columns: 1fr !important;
+    }
+    
+    .config-item {
+      margin-bottom: var(--space-4);
+    }
+    
+    .switch {
+      margin-left: auto;
+    }
+    
+    .switch-group {
+      flex-direction: row;
+      justify-content: space-between;
+    }
+  }
 </style>

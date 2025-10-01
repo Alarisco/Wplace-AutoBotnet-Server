@@ -910,6 +910,13 @@ async def _handle_telemetry_message(slave_id: str, message: Dict[str, Any]):
         
         if new_good or (not old_good):
             existing['preview_data'] = new_pd
+        else:
+            # Si no actualizamos changes, al menos preservar área del nuevo preview
+            if isinstance(new_pd, dict) and isinstance(old_pd, dict):
+                new_area = new_pd.get('protectedArea') or new_pd.get('area')
+                if new_area:
+                    old_pd['protectedArea'] = new_area
+                    old_pd['area'] = new_area
         
         telem = {k: v for k, v in telem.items() if k != 'preview_data'}
     

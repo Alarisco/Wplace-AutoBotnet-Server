@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     slave_ids JSONB NOT NULL DEFAULT '[]',
-    strategy VARCHAR(50) NOT NULL DEFAULT 'balanced' CHECK (strategy IN ('balanced', 'drain', 'priority')),
+    strategy VARCHAR(50) NOT NULL DEFAULT 'balanced' CHECK (strategy IN ('balanced', 'drain', 'priority', 'greedy', 'round_robin')),
     status VARCHAR(50) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'running', 'paused', 'stopped', 'completed')),
     started_at TIMESTAMP WITH TIME ZONE,
     ended_at TIMESTAMP WITH TIME ZONE,

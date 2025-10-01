@@ -3,14 +3,24 @@
 import ThemeToggle from "./ThemeToggle.astro";
 ---
 
-<header class="animate-fade-in" style="border-bottom: 1px solid hsl(var(--border));">
+<header class="animate-fade-in" style="border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--background));">
   <div class="container mx-auto" style="padding: var(--space-4);">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4);">
       <div style="display: flex; align-items: center; gap: var(--space-4);">
         <h1 class="text-title" style="color: hsl(var(--foreground));">WPlace Master</h1>
         <span class="text-caption text-muted">Control Dashboard</span>
       </div>
-      <div style="display: flex; align-items: center; gap: var(--space-4);">
+      <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <!-- Stat badges -->
+        <div class="stat-badge stat-badge--info">
+          <span class="stat-badge__icon">🤖</span>
+          <span class="stat-badge__value" id="header-slaves-count">0</span>
+          <span class="stat-badge__label">Slaves</span>
+        </div>
+        <div class="stat-badge stat-badge--success" id="header-session-badge" style="display: none;">
+          <span class="stat-badge__icon">▶️</span>
+          <span class="stat-badge__label">Session Active</span>
+        </div>
         <div style="display: flex; align-items: center; gap: var(--space-2);">
           <div class="status status--online"></div>
           <span class="text-caption text-muted">Server Online</span>

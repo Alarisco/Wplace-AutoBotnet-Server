@@ -30,6 +30,19 @@ import ProjectsList from "../components/ProjectsList.astro";
     </div>
   </div>
 
+  <!-- Modal de confirmación -->
+  <div id="confirm-modal" class="modal" style="display: none;">
+    <div class="modal__overlay" id="modal-overlay"></div>
+    <div class="modal__content">
+      <h3 class="modal__title" id="modal-title">⚠️ Confirm Action</h3>
+      <p class="modal__message" id="modal-message"></p>
+      <div class="modal__actions">
+        <button class="btn btn--secondary" id="modal-cancel">Cancel</button>
+        <button class="btn btn--danger" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Responsive layout styles -->
   <style>
     .container {

@@ -102,18 +102,84 @@ def _line_right(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _center(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Ordenar píxeles desde el centro hacia afuera."""
-    min_x, max_x, min_y, max_y = _bbox(changes)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
+def _center(changes: List[Dict[str, Any]], area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Ordenar píxeles desde el centro hacia afuera.
+    
+    Args:
+        changes: Lista de cambios a ordenar
+        area: Área completa del JSON (opcional) para calcular el centro correcto
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Validar y extraer área
+    use_area = False
+    start_x = start_y = width = height = 0
+    
+    if area and isinstance(area, dict):
+        # Intentar múltiples variantes de nombres de campos
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        # Validar que width y height sean números positivos
+        try:
+            start_x = int(start_x)
+            start_y = int(start_y)
+            width = int(width)
+            height = int(height)
+            
+            if width > 0 and height > 0:
+                use_area = True
+                logger.info(f"[_center] Using FULL AREA center: area=({start_x},{start_y}) size={width}x{height}")
+            else:
+                logger.warning(f"[_center] Area invalid (width={width}, height={height}), falling back to bbox")
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[_center] Error parsing area fields: {e}, falling back to bbox")
+    else:
+        logger.info(f"[_center] No area provided (area={area}), using CHANGES BBOX")
+    
+    # Calcular centro
+    if use_area:
+        # Centro del área completa
+        cx = start_x + width / 2.0
+        cy = start_y + height / 2.0
+        logger.info(f"[_center] Calculated center from area: ({cx}, {cy})")
+    else:
+        # Fallback al bounding box de los cambios
+        min_x, max_x, min_y, max_y = _bbox(changes)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
+        logger.info(f"[_center] Calculated center from bbox: ({cx}, {cy}) from bbox ({min_x},{min_y}) to ({max_x},{max_y})")
+    
+    # Debug: mostrar algunos píxeles y sus distancias
+    if changes:
+        sample = changes[:3]
+        for ch in sample:
+            dist = math.hypot(int(ch['x']) - cx, int(ch['y']) - cy)
+            logger.debug(f"[_center] Sample pixel ({ch['x']},{ch['y']}) distance to center: {dist:.2f}")
     
     return sorted(changes, key=lambda c: math.hypot(int(c['x']) - cx, int(c['y']) - cy))
 
 
-def _borders(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _borders(changes: List[Dict[str, Any]], area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Ordenar píxeles desde los bordes hacia el centro."""
-    min_x, max_x, min_y, max_y = _bbox(changes)
+    if area and isinstance(area, dict):
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        if width > 0 and height > 0:
+            min_x = int(start_x)
+            max_x = int(start_x + width - 1)
+            min_y = int(start_y)
+            max_y = int(start_y + height - 1)
+        else:
+            min_x, max_x, min_y, max_y = _bbox(changes)
+    else:
+        min_x, max_x, min_y, max_y = _bbox(changes)
     
     def ring(c):
         x = int(c['x'])
@@ -167,16 +233,31 @@ def _diagonal_sweep(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _spiral_like(changes: List[Dict[str, Any]], clockwise: Optional[bool] = None) -> List[Dict[str, Any]]:
+def _spiral_like(changes: List[Dict[str, Any]], clockwise: Optional[bool] = None, area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Ordenar píxeles en patrón espiral.
     
     Args:
         changes: Lista de cambios
         clockwise: True para sentido horario, False para antihorario, None para automático
+        area: Área completa del JSON (opcional) para calcular el centro correcto
     """
-    min_x, max_x, min_y, max_y = _bbox(changes)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
+    if area and isinstance(area, dict):
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        if width > 0 and height > 0:
+            cx = float(start_x) + float(width) / 2.0
+            cy = float(start_y) + float(height) / 2.0
+        else:
+            min_x, max_x, min_y, max_y = _bbox(changes)
+            cx = (min_x + max_x) / 2.0
+            cy = (min_y + max_y) / 2.0
+    else:
+        min_x, max_x, min_y, max_y = _bbox(changes)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
     
     arr = []
     for ch in changes:
@@ -255,11 +336,29 @@ def _sweep(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _priority(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _priority(changes: List[Dict[str, Any]], area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Ordenar píxeles por prioridad (centro vs bordes con factor aleatorio)."""
-    min_x, max_x, min_y, max_y = _bbox(changes)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
+    if area and isinstance(area, dict):
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        if width > 0 and height > 0:
+            min_x = int(start_x)
+            max_x = int(start_x + width - 1)
+            min_y = int(start_y)
+            max_y = int(start_y + height - 1)
+            cx = float(start_x) + float(width) / 2.0
+            cy = float(start_y) + float(height) / 2.0
+        else:
+            min_x, max_x, min_y, max_y = _bbox(changes)
+            cx = (min_x + max_x) / 2.0
+            cy = (min_y + max_y) / 2.0
+    else:
+        min_x, max_x, min_y, max_y = _bbox(changes)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
     
     def score(c):
         x = int(c['x'])
@@ -294,11 +393,25 @@ def _proximity(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def _quadrant(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _quadrant(changes: List[Dict[str, Any]], area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Ordenar píxeles distribuyendo por cuadrantes."""
-    min_x, max_x, min_y, max_y = _bbox(changes)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
+    if area and isinstance(area, dict):
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        if width > 0 and height > 0:
+            cx = float(start_x) + float(width) / 2.0
+            cy = float(start_y) + float(height) / 2.0
+        else:
+            min_x, max_x, min_y, max_y = _bbox(changes)
+            cx = (min_x + max_x) / 2.0
+            cy = (min_y + max_y) / 2.0
+    else:
+        min_x, max_x, min_y, max_y = _bbox(changes)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
     
     quads = [[], [], [], []]
     for ch in changes:
@@ -379,11 +492,29 @@ def _biased_random(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [c for _w, c in items]
 
 
-def _anchor_points(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _anchor_points(changes: List[Dict[str, Any]], area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Ordenar píxeles por proximidad a puntos de anclaje estratégicos."""
-    min_x, max_x, min_y, max_y = _bbox(changes)
-    cx = (min_x + max_x) / 2.0
-    cy = (min_y + max_y) / 2.0
+    if area and isinstance(area, dict):
+        start_x = area.get('startX') or area.get('start_x') or area.get('x') or 0
+        start_y = area.get('startY') or area.get('start_y') or area.get('y') or 0
+        width = area.get('width') or area.get('w') or 0
+        height = area.get('height') or area.get('h') or 0
+        
+        if width > 0 and height > 0:
+            min_x = int(start_x)
+            max_x = int(start_x + width - 1)
+            min_y = int(start_y)
+            max_y = int(start_y + height - 1)
+            cx = float(start_x) + float(width) / 2.0
+            cy = float(start_y) + float(height) / 2.0
+        else:
+            min_x, max_x, min_y, max_y = _bbox(changes)
+            cx = (min_x + max_x) / 2.0
+            cy = (min_y + max_y) / 2.0
+    else:
+        min_x, max_x, min_y, max_y = _bbox(changes)
+        cx = (min_x + max_x) / 2.0
+        cy = (min_y + max_y) / 2.0
     
     anchors = [
         (min_x, min_y, 1), (max_x, min_y, 1), (min_x, max_y, 1), (max_x, max_y, 1),
@@ -407,13 +538,14 @@ def _anchor_points(changes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(changes, key=key)
 
 
-def select_pixels_by_pattern(pattern: str, changes: List[Dict[str, Any]], count: int) -> List[Dict[str, Any]]:
+def select_pixels_by_pattern(pattern: str, changes: List[Dict[str, Any]], count: int, area: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Seleccionar píxeles usando un patrón específico.
     
     Args:
         pattern: Nombre del patrón a usar
         changes: Lista de cambios disponibles
         count: Número máximo de píxeles a seleccionar
+        area: Área completa del JSON (opcional) con campos startX, startY, width, height
         
     Returns:
         Lista de píxeles ordenados según el patrón
@@ -435,15 +567,15 @@ def select_pixels_by_pattern(pattern: str, changes: List[Dict[str, Any]], count:
         elif p == 'lineRight':
             ordered = _line_right(pool)
         elif p == 'center':
-            ordered = _center(pool)
+            ordered = _center(pool, area)
         elif p == 'borders':
-            ordered = _borders(pool)
+            ordered = _borders(pool, area)
         elif p == 'spiral':
-            ordered = _spiral_like(pool, None)
+            ordered = _spiral_like(pool, None, area)
         elif p == 'spiralClockwise':
-            ordered = _spiral_like(pool, True)
+            ordered = _spiral_like(pool, True, area)
         elif p == 'spiralCounterClockwise':
-            ordered = _spiral_like(pool, False)
+            ordered = _spiral_like(pool, False, area)
         elif p == 'zigzag':
             ordered = _zigzag(pool)
         elif p == 'diagonal':
@@ -457,11 +589,11 @@ def select_pixels_by_pattern(pattern: str, changes: List[Dict[str, Any]], count:
         elif p == 'sweep':
             ordered = _sweep(pool)
         elif p == 'priority':
-            ordered = _priority(pool)
+            ordered = _priority(pool, area)
         elif p == 'proximity':
             ordered = _proximity(pool)
         elif p == 'quadrant':
-            ordered = _quadrant(pool)
+            ordered = _quadrant(pool, area)
         elif p == 'scattered':
             ordered = _scattered(pool)
         elif p == 'snake':
@@ -471,7 +603,7 @@ def select_pixels_by_pattern(pattern: str, changes: List[Dict[str, Any]], count:
         elif p == 'biasedRandom':
             ordered = _biased_random(pool)
         elif p == 'anchorPoints':
-            ordered = _anchor_points(pool)
+            ordered = _anchor_points(pool, area)
         else:
             # random por defecto
             ordered = pool[:]

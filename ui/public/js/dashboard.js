@@ -83,6 +83,185 @@ class WPlaceDashboard {
         this.recomputeRoundPlan();
       }
     });
+    
+    // Setup UI enhancements
+    this.setupSlaveSearch();
+    this.setupSlaveFilters();
+    this.setupConfirmModal();
+    this.setupHeaderStats();
+  }
+  
+  // === UI ENHANCEMENTS ===
+  
+  setupSlaveSearch() {
+    const searchInput = document.getElementById('slaves-search-input');
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      this.filterSlaves(query, this.activeSlaveFilter || 'all');
+    });
+  }
+  
+  setupSlaveFilters() {
+    this.activeSlaveFilter = 'all';
+    const filterButtons = document.querySelectorAll('.filter-chip');
+    
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const filter = e.currentTarget.dataset.filter;
+        this.activeSlaveFilter = filter;
+        
+        // Update active state
+        filterButtons.forEach(b => b.classList.remove('filter-chip--active'));
+        e.currentTarget.classList.add('filter-chip--active');
+        
+        // Apply filter
+        const searchQuery = document.getElementById('slaves-search-input')?.value.toLowerCase().trim() || '';
+        this.filterSlaves(searchQuery, filter);
+      });
+    });
+  }
+  
+  filterSlaves(searchQuery, filter) {
+    const slavesList = document.getElementById('slaves-list');
+    if (!slavesList) return;
+    
+    const slaveCards = slavesList.querySelectorAll('.slave-card');
+    let visibleCount = 0;
+    
+    slaveCards.forEach(card => {
+      const slaveId = card.dataset.slaveId;
+      const status = card.dataset.status || 'waiting';
+      
+      // Check search query
+      const matchesSearch = !searchQuery || 
+        slaveId.toLowerCase().includes(searchQuery) ||
+        status.toLowerCase().includes(searchQuery);
+      
+      // Check filter
+      const matchesFilter = filter === 'all' || status === filter;
+      
+      if (matchesSearch && matchesFilter) {
+        card.style.display = '';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+    
+    // Update filter counts
+    this.updateFilterCounts();
+  }
+  
+  updateFilterCounts() {
+    const slaveCards = document.querySelectorAll('.slave-card');
+    const counts = { all: 0, eligible: 0, waiting: 0, working: 0 };
+    
+    slaveCards.forEach(card => {
+      const status = card.dataset.status || 'waiting';
+      counts.all++;
+      if (counts[status] !== undefined) counts[status]++;
+    });
+    
+    document.getElementById('filter-all-count').textContent = counts.all;
+    document.getElementById('filter-eligible-count').textContent = counts.eligible;
+    document.getElementById('filter-waiting-count').textContent = counts.waiting;
+    document.getElementById('filter-working-count').textContent = counts.working;
+  }
+  
+  setupConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    const overlay = document.getElementById('modal-overlay');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const confirmBtn = document.getElementById('modal-confirm');
+    
+    if (!modal) return;
+    
+    this.confirmCallback = null;
+    
+    const closeModal = () => {
+      modal.style.display = 'none';
+      this.confirmCallback = null;
+    };
+    
+    overlay?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
+    
+    confirmBtn?.addEventListener('click', () => {
+      if (this.confirmCallback) {
+        this.confirmCallback();
+      }
+      closeModal();
+    });
+    
+    // Enhance stop button with confirmation
+    const stopBtn = document.getElementById('stop-btn');
+    if (stopBtn) {
+      const originalStopHandler = () => this.sessionManager.stopSession();
+      stopBtn.removeEventListener('click', originalStopHandler);
+      
+      stopBtn.addEventListener('click', () => {
+        this.showConfirmModal(
+          '⚠️ Stop Session',
+          'Are you sure you want to stop the current session? All progress will be halted.',
+          () => this.sessionManager.stopSession()
+        );
+      });
+    }
+  }
+  
+  showConfirmModal(title, message, callback) {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) return;
+    
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-message').textContent = message;
+    this.confirmCallback = callback;
+    modal.style.display = 'flex';
+  }
+  
+  setupHeaderStats() {
+    // Update header stats periodically
+    setInterval(() => {
+      this.updateHeaderStats();
+    }, 1000);
+  }
+  
+  updateHeaderStats() {
+    const slavesCount = this.slaveManager?.slaves?.size || 0;
+    const slavesCountEl = document.getElementById('header-slaves-count');
+    if (slavesCountEl) {
+      slavesCountEl.textContent = slavesCount;
+    }
+    
+    const sessionBadge = document.getElementById('header-session-badge');
+    if (sessionBadge) {
+      const isSessionActive = this.sessionManager?.sessionActive || false;
+      sessionBadge.style.display = isSessionActive ? 'flex' : 'none';
+    }
+  }
+  
+  setButtonLoading(buttonId, isLoading) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) return;
+    
+    if (isLoading) {
+      btn.classList.add('btn--loading');
+      btn.disabled = true;
+      const textEl = btn.querySelector('.btn__text');
+      if (textEl) {
+        textEl.dataset.originalText = textEl.textContent;
+        textEl.textContent = 'Processing...';
+      }
+    } else {
+      btn.classList.remove('btn--loading');
+      btn.disabled = false;
+      const textEl = btn.querySelector('.btn__text');
+      if (textEl && textEl.dataset.originalText) {
+        textEl.textContent = textEl.dataset.originalText;
+      }
+    }
   }
 
   setupPreviewResizer() {
@@ -569,7 +748,8 @@ class WPlaceDashboard {
           if (detectedEl) detectedEl.textContent = this.detectedBotMode ? `Detected mode: ${this.detectedBotMode}` : 'No file loaded - mode will be auto-detected';
         }
 
-        this.previewManager.updatePreviewFromSlave(message.slave_id, pd);
+        // telemetry_update puede tener preview_data viejo - solo actualizar si no hay uno más reciente
+        this.previewManager.updatePreviewFromSlave(message.slave_id, pd, { priority: false });
         this.recomputeRoundPlan();
         this.updateControlButtons();
       }
@@ -589,13 +769,7 @@ class WPlaceDashboard {
   }
 
   handlePreviewData(message) {
-    const now = Date.now();
-    if (now - this.previewManager.lastPreviewAt < 5000) {
-      this.uiHelpers.logOnce('throttle:preview', '⏱️ Preview update throttled', 3000);
-      return;
-    }
-
-    this.previewManager.lastPreviewAt = now;
+    // preview_data viene del check del orchestrator al favorito - es prioritario
     this.log(`🖼️ Preview data from ${message.slave_id}: ${message.data ? 'Data received' : 'No data'}`);
 
     if (message.data && message.data.analysis) {
@@ -607,7 +781,8 @@ class WPlaceDashboard {
       if (favId && favId === message.slave_id) this.ageRecentRepairs();
     } catch {}
 
-    this.previewManager.updatePreviewFromSlave(message.slave_id, message.data);
+    // Marcar como preview prioritario (desde preview_data directo)
+    this.previewManager.updatePreviewFromSlave(message.slave_id, message.data, { priority: true });
     this.recomputeRoundPlan();
     try { this.updateControlButtons(); } catch {}
   }

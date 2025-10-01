@@ -3,28 +3,46 @@
 ---
 
 <div class="panel animate-slide-up">
-  <h2 class="text-heading" style="margin-bottom: var(--space-4); color: hsl(var(--foreground));">Real-time Telemetry</h2>
-  <div id="telemetry-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4);">
-    <div class="card" style="text-align: center;">
-      <div class="text-title text-primary" id="repaired-pixels">0</div>
-      <div class="text-caption text-muted">Repaired Pixels</div>
+  <h2 class="text-heading" style="margin-bottom: var(--space-6); color: hsl(var(--foreground));">Real-time Telemetry</h2>
+  
+  <div class="telemetry-sections">
+    <!-- Sección: Canvas Status -->
+    <div class="telemetry-section">
+      <h3 class="telemetry-section__title">🎨 Canvas Status</h3>
+      <div class="telemetry-grid">
+        <div class="card card--telemetry card--success">
+          <div class="card__icon">✅</div>
+          <div class="card__value" id="repaired-pixels">0</div>
+          <div class="card__label">Repaired</div>
+        </div>
+        <div class="card card--telemetry card--warning">
+          <div class="card__icon">❌</div>
+          <div class="card__value" id="incorrect-pixels">0</div>
+          <div class="card__label">Incorrectos</div>
+        </div>
+        <div class="card card--telemetry card--danger">
+          <div class="card__icon">⚪</div>
+          <div class="card__value" id="missing-pixels">0</div>
+          <div class="card__label">Faltantes</div>
+        </div>
+      </div>
     </div>
-    <div class="card" style="text-align: center;">
-      <div class="text-title text-warning" id="incorrect-pixels">0</div>
-      <div class="text-caption text-muted">❌ Incorrectos</div>
-    </div>
-    <div class="card" style="text-align: center;">
-      <div class="text-title text-danger" id="missing-pixels">0</div>
-      <div class="text-caption text-muted">⚪ Faltantes</div>
-    </div>
-    <div class="card" style="text-align: center;">
-      <div class="text-title text-success" id="remaining-charges">0/0</div>
-      <div class="text-caption text-muted">Remaining Charges</div>
-      <div class="text-[10px] text-muted-foreground mt-0.5" style="opacity: 0.7;">Available / Total Capacity</div>
+    
+    <!-- Sección: Resources -->
+    <div class="telemetry-section">
+      <h3 class="telemetry-section__title">⚡ Resources</h3>
+      <div class="card card--telemetry card--primary">
+        <div class="card__icon">🔋</div>
+        <div class="card__value" id="remaining-charges">0/0</div>
+        <div class="card__label">Charges</div>
+        <div class="card__sublabel">Available / Total Capacity</div>
+      </div>
     </div>
   </div>
-  <div style="margin-top: var(--space-4);">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-1);">
+  
+  <!-- Progress -->
+  <div style="margin-top: var(--space-6);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2);">
       <span class="text-caption text-muted">Progress (latest preview)</span>
       <span id="overall-progress-label" class="text-caption text-muted">0%</span>
     </div>
@@ -33,11 +51,3 @@
     </div>
   </div>
 </div>
-
-<style>
-  @media (min-width: 768px) {
-    #telemetry-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
-  }
-</style>

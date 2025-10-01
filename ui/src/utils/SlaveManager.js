@@ -71,7 +71,7 @@ export class SlaveManager {
     const allSlaves = Array.from(this.slaves.values());
 
     container.innerHTML = allSlaves.map(slave => `
-      <div id="slave-${slave.id}" class="flex items-center justify-between p-3 border rounded-md">
+      <div id="slave-${slave.id}" class="slave-card flex items-center justify-between p-3 border rounded-md" data-slave-id="${slave.id}" data-status="waiting">
         <div class="flex-1">
           <div class="flex items-center gap-2">
             <span class="font-medium">${slave.id}</span>
@@ -88,7 +88,7 @@ export class SlaveManager {
             <span id="slave-${slave.id}-quota" class="font-medium">--</span>
           </div>
           <div class="w-40 h-1.5 bg-muted rounded mt-1">
-            <div id="slave-${slave.id}-quota-bar" class="h-1.5 bg-blue-500 rounded transition-all" style="width:0%"></div>
+            <div id="slave-${slave.id}-quota-bar" class="h-1.5 bg-blue-500 rounded transition-all slave-card__quota" style="width:0%"></div>
           </div>
           <div class="text-[10px] mt-0.5" id="slave-${slave.id}-status" style="opacity: 0.6;"></div>
         </div>
@@ -122,6 +122,11 @@ export class SlaveManager {
     if (this._selectedSlavesServer && this._selectedSlavesServer.size > 0) {
       this.applyServerSelection();
     }
+    
+    // Actualizar contadores de filtros
+    try {
+      this.dashboard?.updateFilterCounts?.();
+    } catch {}
   }
 
   /**
@@ -334,6 +339,7 @@ export class SlaveManager {
     const labelEl = document.getElementById(`slave-${slaveId}-quota-label`);
     const barEl = document.getElementById(`slave-${slaveId}-quota-bar`);
     const statusEl = document.getElementById(`slave-${slaveId}-status`);
+    const cardEl = document.getElementById(`slave-${slaveId}`);
     
     const slave = this.slaves.get(slaveId);
     if (!slave) return;
@@ -357,6 +363,19 @@ export class SlaveManager {
       // Modo normal: necesita minCharges + pixelsPerBatch
       required = minCharges + pixelsPerBatch;
       isEligible = currentCharges >= required;
+    }
+    
+    // Determinar status para filtros
+    let status = 'waiting';
+    if (quota > 0) {
+      status = 'working';
+    } else if (isEligible) {
+      status = 'eligible';
+    }
+    
+    // Actualizar atributo data-status para filtros
+    if (cardEl) {
+      cardEl.dataset.status = status;
     }
     
     if (quotaEl) {
@@ -421,6 +440,11 @@ export class SlaveManager {
         statusEl.style.color = '#10b981';
       }
     }
+    
+    // Actualizar contadores de filtros después de cambiar status
+    try {
+      this.dashboard?.updateFilterCounts?.();
+    } catch {}
   }
 
   /**

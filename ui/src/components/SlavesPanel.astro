@@ -3,17 +3,47 @@
 ---
 
 <div class="panel">
-  <div class="panel-header-with-toggle">
-    <h2 class="text-heading">Connected Slaves</h2>
-    <label class="switch">
-      <input type="checkbox" id="toggle-all-slaves">
-      <span class="switch__track"></span>
-      <span class="switch__thumb"></span>
-    </label>
+  <!-- Header con título, badge de contador y toggle master -->
+  <div class="slaves-header">
+    <div class="slaves-header__title">
+      <h2 class="text-heading">Connected Slaves</h2>
+      <span class="badge badge--primary" id="slaves-count-badge">0</span>
+      <label class="switch" style="margin-left: auto;">
+        <input type="checkbox" id="toggle-all-slaves">
+        <span class="switch__track"></span>
+        <span class="switch__thumb"></span>
+      </label>
+    </div>
+    
+    <!-- Barra de búsqueda -->
+    <div class="slaves-search">
+      <input 
+        type="text" 
+        id="slaves-search-input" 
+        class="input input--search"
+        placeholder="Search slaves..."
+        aria-label="Search slaves by ID or status"
+      >
+    </div>
+    
+    <!-- Filtros por estado -->
+    <div class="slaves-filters">
+      <button class="filter-chip filter-chip--active" data-filter="all">
+        All <span class="filter-chip__count" id="filter-all-count">0</span>
+      </button>
+      <button class="filter-chip" data-filter="eligible">
+        ✅ Eligible <span class="filter-chip__count" id="filter-eligible-count">0</span>
+      </button>
+      <button class="filter-chip" data-filter="waiting">
+        ⏳ Waiting <span class="filter-chip__count" id="filter-waiting-count">0</span>
+      </button>
+      <button class="filter-chip" data-filter="working">
+        🔄 Working <span class="filter-chip__count" id="filter-working-count">0</span>
+      </button>
+    </div>
   </div>
 
   <div class="panel__content">
-
     <!-- Slaves list -->
     <div id="slaves-list" class="slaves-list">
       No slaves connected. Inject Auto-Slave.js in your browser.
@@ -23,7 +53,7 @@
     <div class="logs-section">
       <details id="logs-section" class="logs-details">
         <summary class="logs-summary">Activity Logs</summary>
-        <div id="logs-container" class="logs-container"></div>
+        <div id="logs-container" class="logs-container activity-logs"></div>
       </details>
     </div>
   </div>
@@ -31,13 +61,6 @@
 
 <!-- Styles específicos para SlavesPanel -->
 <style>
-  .panel-header-with-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-4);
-  }
-  
   .slaves-list {
     display: flex;
     flex-direction: column;
@@ -59,15 +82,16 @@
   }
   
   .logs-summary {
-    color: hsl(var(--muted-foreground));
-    font-size: var(--text-sm);
+    color: hsl(var(--foreground-muted));
+    font-size: 0.875rem;
     cursor: pointer;
     user-select: none;
     list-style: none;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    transition: color var(--duration-200) var(--ease-out);
+    transition: color var(--duration-fast) var(--ease-out);
+    font-weight: 500;
   }
   
   .logs-summary:hover {
@@ -80,9 +104,9 @@
   
   .logs-summary::before {
     content: '▶';
-    transition: transform var(--duration-200) var(--ease-out);
-    font-size: var(--text-xs);
-    color: hsl(var(--muted-foreground));
+    transition: transform var(--duration-fast) var(--ease-out);
+    font-size: 0.75rem;
+    color: hsl(var(--foreground-muted));
   }
   
   .logs-details[open] .logs-summary::before {
@@ -90,16 +114,24 @@
   }
   
   .logs-container {
-    margin-top: var(--space-2);
-    font-size: var(--text-xs);
-    color: hsl(var(--muted-foreground));
+    margin-top: var(--space-3);
     max-height: 300px;
     overflow-y: auto;
     white-space: pre-wrap;
-    background-color: hsl(var(--card));
+    background-color: hsl(var(--surface));
     padding: var(--space-3);
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius-md);
-    font-family: var(--font-mono);
+  }
+  
+  @media (max-width: 640px) {
+    .slaves-header__title {
+      flex-wrap: wrap;
+    }
+    
+    .slaves-filters {
+      overflow-x: auto;
+      padding-bottom: var(--space-2);
+    }
   }
 </style>

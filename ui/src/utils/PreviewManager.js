@@ -24,6 +24,7 @@ export class PreviewManager {
     this.previewMeta = {};
     this.lastPreviewAt = 0;
     this._previewRefreshCooldownUntil = 0;
+    this._lastPriorityPreviewAt = 0; // Timestamp del último preview_data prioritario
   }
 
   /**
@@ -389,12 +390,32 @@ export class PreviewManager {
 
   /**
    * Actualiza el preview desde datos de un slave
+   * @param {string} slaveId - ID del slave
+   * @param {Object} data - Datos del preview
+   * @param {Object} options - Opciones de actualización
+   * @param {boolean} options.priority - Si true, siempre actualiza. Si false, solo si no hay datos más recientes.
    */
-  updatePreviewFromSlave(slaveId, data) {
+  updatePreviewFromSlave(slaveId, data, options = {}) {
     try {
       if (!data) return;
+      
+      const now = Date.now();
+      const isPriority = options.priority !== false; // Por defecto es priority
+      
+      // Si no es priority (viene de telemetry_update), verificar si ya tenemos datos recientes
+      if (!isPriority) {
+        // Si recibimos preview_data hace menos de 2 segundos, ignorar telemetry_update
+        if (this._lastPriorityPreviewAt && (now - this._lastPriorityPreviewAt) < 2000) {
+          this.dashboard.uiHelpers.logOnce('preview:skip-stale', '⏭️ Skipping stale telemetry preview (have fresh preview_data)', 2000);
+          return;
+        }
+      } else {
+        // Actualizar timestamp de preview prioritario
+        this._lastPriorityPreviewAt = now;
+      }
+      
       this.lastPreviewData = data;
-      this.dashboard.log(`🔄 Processing preview data from ${slaveId}`);
+      this.dashboard.log(`🔄 Processing ${isPriority ? 'priority' : 'telemetry'} preview data from ${slaveId}`);
       
       const area = data.protectedArea || data.area;
       if (!area) {

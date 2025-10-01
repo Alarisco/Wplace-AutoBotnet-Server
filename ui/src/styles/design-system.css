@@ -352,6 +352,34 @@ body {
   line-height: 1.5rem;
 }
 
+/* Estado loading para botones */
+.btn--loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.btn--loading::before {
+  content: '';
+  position: absolute;
+  left: var(--space-3);
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.btn--loading .btn__text {
+  opacity: 0.6;
+  margin-left: var(--space-5);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* === Inputs === */
 .input {
   display: flex;
@@ -412,24 +440,101 @@ body {
   padding: var(--space-4);
   
   transition: all var(--duration-fast) var(--ease-out);
-  
-  &:hover {
-    box-shadow: var(--elevation-2);
-    transform: translateY(-2px);
-  }
+}
+
+/* Variantes de cards para diferentes niveles */
+.card--elevated {
+  background: hsl(var(--surface-2));
+  box-shadow: var(--elevation-2);
+}
+
+.card--highlighted {
+  background: hsl(var(--surface-2));
+  border: 2px solid hsl(var(--primary) / 0.3);
+  box-shadow: 
+    var(--elevation-1),
+    0 0 0 4px hsl(var(--primary) / 0.1);
+}
+
+.card--interactive {
+  cursor: pointer;
+  transition: 
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.card--interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-3);
+}
+
+.card--interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--elevation-1);
+}
+
+/* Cards para telemetría con borde de color */
+.card--telemetry {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.card--telemetry::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.card--telemetry.card--success { color: hsl(var(--success)); }
+.card--telemetry.card--warning { color: hsl(var(--warning)); }
+.card--telemetry.card--danger { color: hsl(var(--danger)); }
+.card--telemetry.card--primary { color: hsl(var(--primary)); }
+
+.card__icon {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-2);
+}
+
+.card__value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.card__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: hsl(var(--foreground-muted));
+}
+
+.card__sublabel {
+  font-size: 0.6875rem;
+  color: hsl(var(--foreground-subtle));
+  margin-top: var(--space-1);
 }
 
 /* === Badges === */
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-1);
   
+  min-width: 24px;
+  height: 24px;
   border-radius: var(--radius-full);
-  padding: var(--space-1) var(--space-2);
+  padding: 0 var(--space-2);
   
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1rem;
   white-space: nowrap;
 }
@@ -452,6 +557,54 @@ body {
 .badge--danger {
   background-color: hsl(var(--danger) / 0.1);
   color: hsl(var(--danger));
+}
+
+/* Stat badges para header y otros componentes */
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.stat-badge:hover {
+  background: hsl(var(--surface-3));
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.stat-badge__icon {
+  font-size: 1rem;
+}
+
+.stat-badge__value {
+  font-weight: 600;
+  color: hsl(var(--primary));
+}
+
+.stat-badge__label {
+  color: hsl(var(--foreground-muted));
+  font-size: 0.75rem;
+}
+
+.stat-badge--info {
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+.stat-badge--success {
+  border-color: hsl(var(--success) / 0.3);
+}
+
+.stat-badge--warning {
+  border-color: hsl(var(--warning) / 0.3);
+}
+
+.stat-badge--danger {
+  border-color: hsl(var(--danger) / 0.3);
 }
 
 /* === Switch Toggle === */
@@ -505,35 +658,68 @@ body {
 
 /* === Progress Bar === */
 .progress {
+  position: relative;
   width: 100%;
   height: 8px;
   background-color: hsl(var(--surface-2));
   border-radius: var(--radius-full);
   overflow: hidden;
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.1);
 }
 
 .progress__bar {
   height: 100%;
-  background: linear-gradient(90deg, hsl(var(--success)), hsl(var(--primary)));
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)),
+    hsl(var(--primary) / 0.8)
+  );
   border-radius: var(--radius-full);
   transition: width var(--duration-slow) var(--ease-out);
   position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.3),
-      transparent
-    );
-    animation: shimmer 2s infinite;
-  }
+  overflow: hidden;
+}
+
+/* Efecto shimmer para barras activas */
+.progress__bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+/* Variantes de color para progress bars */
+.progress__bar--success {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--success)),
+    hsl(var(--success) / 0.8)
+  );
+}
+
+.progress__bar--warning {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--warning)),
+    hsl(var(--warning) / 0.8)
+  );
+}
+
+.progress__bar--danger {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--danger)),
+    hsl(var(--danger) / 0.8)
+  );
 }
 
 /* ===== ANIMACIONES ===== */
@@ -724,6 +910,303 @@ body {
   .status--warning {
     animation: none;
   }
+}
+
+/* === Modal === */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn var(--duration-fast) var(--ease-out);
+}
+
+.modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.modal__content {
+  position: relative;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  max-width: 400px;
+  width: 90%;
+  box-shadow: var(--elevation-4);
+  animation: modalSlideUp var(--duration-normal) var(--ease-spring);
+}
+
+@keyframes modalSlideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: var(--space-4);
+  color: hsl(var(--foreground));
+}
+
+.modal__message {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground-muted));
+  margin-bottom: var(--space-6);
+}
+
+.modal__actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+/* === Tooltips === */
+.tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip__trigger {
+  cursor: help;
+  font-size: 0.875rem;
+  opacity: 0.6;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.tooltip__trigger:hover {
+  opacity: 1;
+}
+
+.tooltip::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--surface-3));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: 
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  z-index: var(--z-tooltip);
+  box-shadow: var(--elevation-3);
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + var(--space-1));
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: hsl(var(--border));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+  z-index: var(--z-tooltip);
+}
+
+.tooltip:hover::before,
+.tooltip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* === Activity Logs === */
+.activity-logs {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.log-entry {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.log-entry:hover {
+  background: hsl(var(--surface-2));
+}
+
+.log-entry--error {
+  border-left-color: hsl(var(--danger));
+  background: hsl(var(--danger) / 0.05);
+}
+
+.log-entry--warning {
+  border-left-color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.05);
+}
+
+.log-entry--success {
+  border-left-color: hsl(var(--success));
+  background: hsl(var(--success) / 0.05);
+}
+
+.log-entry__time {
+  color: hsl(var(--foreground-subtle));
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.log-entry__message {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* === Slaves Search & Filters === */
+.slaves-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.slaves-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.slaves-search {
+  width: 100%;
+}
+
+.input--search {
+  width: 100%;
+  padding-left: var(--space-8);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca0a5' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: var(--space-3) center;
+}
+
+.slaves-filters {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.filter-chip:hover {
+  background: hsl(var(--surface-3));
+  border-color: hsl(var(--primary));
+}
+
+.filter-chip--active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.filter-chip__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  background: hsl(var(--background) / 0.2);
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* === Telemetry Sections === */
+.telemetry-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.telemetry-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.telemetry-section__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground-muted));
+  margin-bottom: var(--space-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+  .telemetry-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* === Slave Cards Improvements === */
+.slave-card {
+  transition: 
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.slave-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
+}
+
+.slave-card__quota {
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+.slave-card[data-status="eligible"] .slave-card__quota {
+  animation: pulse-success 2s ease-in-out infinite;
+}
+
+@keyframes pulse-success {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
 }
 
 /* ===== LAYOUT & UTILITIES ===== */
